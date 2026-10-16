@@ -1,6 +1,15 @@
+<!-- BEGIN public-repo-header -->
+<div align="center">
+
 # BEAVR
 
 **BEAVR is Weavr's bounded execution harness.**
+
+<a href="https://github.com/blackmath88/beavr/tree/main/docs"><img alt="Documentation" src="https://img.shields.io/badge/docs-guide-16796f?style=flat"></a>
+<a href="https://github.com/blackmath88/beavr/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/blackmath88/beavr?style=flat&amp;color=737373"></a>
+
+</div>
+<!-- END public-repo-header -->
 
 Weavr owns intent, mission authority, policy and durable orchestration. BEAVR executes a bounded run inside that envelope, potentially splitting work between a frontier reasoning model and a local worker such as Morrow.
 
