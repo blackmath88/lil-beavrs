@@ -6,6 +6,8 @@ are. The cookie is unsigned Base64 JSON — so you rewrite your role and become 
 **Start with the story:** open [`index.html`](index.html) — the deterministic steps run
 live in your browser (via Pyodide, against an in-page mock). Then run the real files below.
 
+**Why isn't this whole class of bug just solved by the browser, the CDN, or a smarter agent?** See the companion essay [`WHY-NOT-SOLVED.md`](WHY-NOT-SOLVED.md).
+
 ## The arc: manual → script → recon → map → agent
 
 The lesson is a progression you can run stage by stage. Each file is one rung:
