@@ -1,0 +1,3 @@
+requests
+pydantic-ai-slim[mistral]
+python-dotenv
