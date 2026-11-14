@@ -4,8 +4,8 @@ CyberZerk CTF · *Tricatel-Cyber HR Portal*. A burnt-out dev builds the login at
 glues the username straight into a SQL query. You close the string with an apostrophe and
 comment out the password check — logging in as admin with no password.
 
-> **Status: scaffold in progress.** Built so far: the **recon** rung + a visual map.
-> The rest of the arc follows step by step.
+> **Status: the full arc runs.** recon → guide → map → agent are built and run offline;
+> `01_solve_cli.py` (the bare manual exploit) is the one rung still open.
 
 ## The arc: manual → script → recon → map → agent
 
@@ -15,7 +15,8 @@ comment out the password check — logging in as admin with no password.
 | `recon.py` | recon | derive it live: parse form, fingerprint stack, baseline, fire a fixed probe set, classify | ☑ **done** |
 | `guide.py` | map | deterministic URL→flag guide: harvest semantic clues, rank targets, walk a probe ladder, predict un-fired branches | ☑ **done** |
 | `index.html` | map | the guide's decision tree as a visual map — solid (observed) vs blurred (predicted) branches | ☑ **done** |
-| `brain.py` / agents | agent | a typed LLM layer that *ranks* probes; the oracle still judges | ☐ planned |
+| `brain.py` | agent | typed LLM reasoning capability — `rank` existing candidates, `invent` new ones, `interpret` clues; never judges, never fires | ☑ **done** |
+| `agent.py` | agent | the fenced loop: guide (discover) → brain (propose) → oracle (judge) → human/`--auto` fire, bounded; runs offline without a key | ☑ **done** |
 
 ## The capability — `recon.py`
 
@@ -37,9 +38,13 @@ captured responses** — no network, no key.
 ```bash
 python3 recon.py          # recon only: form, fingerprint, probe set, classify
 python3 guide.py          # the full guide: clues, targets, decision tree, predictions
+python3 agent.py --auto   # the agentic loop, offline demo (deterministic fallback)
 
 # live, against the authorized instance (needs `requests`):
 python3 guide.py --live
+
+# with real reasoning: pip install -r ../../requirements.txt; set MISTRAL_API_KEY in ../../.env
+MISTRAL_API_KEY=... python3 agent.py --live --auto
 ```
 
 Open [`index.html`](index.html) for the visual map.
@@ -60,6 +65,23 @@ steps, showing the whole decision tree:
 Clues are *harvested, not understood*: rules surface the signal; the agent (next rung)
 interprets the ambiguous ones. The more the guide settles deterministically, the less the
 agent has to.
+
+## The agent — `brain.py` + `agent.py`
+
+The LLM rung, kept narrow on purpose. `brain.py` is a typed PydanticAI module: a scoped
+**projection** of the guide's state comes in (`deps`), one validated **proposal** goes out
+(`output_type = Rank | Invent | Interpret | Ask | Answer`) — off-contract output raises instead
+of leaking. Lesson 01's brain only *re-ordered a fixed list*; this one crosses that "open edge"
+— it may also **invent** new candidates and **interpret** clues. `agent.py` runs the loop:
+guide discovers, brain proposes, the **oracle alone says WIN**, and firing is bounded and
+human-confirmed (or `--auto`). Invention adds no risk: anything invented is just a string that
+re-enters the same deterministic pipeline and is gated by the oracle.
+
+**Why this is not the usual "AI pentest agent."** The field climbs an autonomy ladder where one
+LLM loop plans, executes *and* implicitly judges its own success — which is where hallucinated
+flags and non-reproducible runs come from. Here the trust is inverted: deterministic code owns
+discovery, execution and the success **oracle**; the LLM is a fenced advisor; the human pulls
+the trigger. Capabilities, not an agent.
 
 ## Background
 
