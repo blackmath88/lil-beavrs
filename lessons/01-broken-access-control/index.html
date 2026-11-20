@@ -66,6 +66,9 @@ button{font-family:inherit}
   position:fixed;inset:0;z-index:0;pointer-events:none;
   /* ART: seasonal + weather pixel sprite layers mount here (SEASONS[month], open-meteo) */
 }
+#ambient-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;
+  image-rendering:pixelated}   /* ART: colored-rect particles stand in for seasonal sprites */
+#ambientBtn.live{color:var(--accent2)}
 
 /* ===========================================================================
    STAGE  =  the camera viewport.  #world = the thing the camera moves.
@@ -277,7 +280,8 @@ body:not(.station) #railnav button[aria-current] .pip{}
   .nameplate{transform:translateX(-50%) scale(1) !important}
   .ports{right:-10px;flex-direction:row;top:auto;bottom:-52px;transform:none}
   #hud{padding:12px}
-  .brandmark small{display:none}
+  .brandmark small,.bm-name{display:none}   /* keep only the LB mark so the controls fit */
+  .ctl-lb{display:none}                     /* ambient button → icon-only on narrow */
   .ctl .wide-only{display:none}
   .hud-title{display:none}            /* redundant on the scrollable list */
   #hint{display:none}                 /* keyboard hints are irrelevant on touch */
@@ -396,7 +400,7 @@ html.reduce #layer{transition:none}
 
 <!-- ========================= HUD ========================= -->
 <header id="hud">
-  <div class="brandmark"><span class="dot">LB</span> The Machine Bench
+  <div class="brandmark"><span class="dot">LB</span> <span class="bm-name">The Machine Bench</span>
     <small>· Lesson 1 · Broken Access Control</small></div>
   <div class="hud-title" id="hudTitle" aria-live="polite"></div>
   <div class="hud-spacer"></div>
@@ -407,6 +411,8 @@ html.reduce #layer{transition:none}
     <button id="btnOverview" class="primary" title="Overview (Esc)">⤢ Overview</button>
     <span class="sep"></span>
     <button id="btnWalk" title="Auto-walk the path">▶ Guided</button>
+    <span class="sep"></span>
+    <button id="ambientBtn" title="Season ambience — click for local weather (asks for your location)">· · ·</button>
   </div>
 </header>
 
@@ -1164,14 +1170,116 @@ function reconcileLayout(){
 }
 addEventListener("resize", ()=>{ clearTimeout(rz); rz=setTimeout(reconcileLayout,120); });
 mqNarrow.addEventListener("change", reconcileLayout);
-mqReduce.addEventListener("change", ()=>
-  document.documentElement.classList.toggle("reduce-pref", mqReduce.matches));
+mqReduce.addEventListener("change", ()=> setAmbient(AMB.mode));   // re-apply static vs animated
+
+/* ===================== PHASE 4: SEASONAL + WEATHER AMBIENCE =====================
+   SEASONS[month] drives a pixel-particle layer (colored-rect stand-ins — ART slots for
+   sprites). Optional, user-initiated geolocation → open-meteo (keyless) overlays live
+   weather, degrading gracefully. Ports the falling-leaves canvas from 04_recon_gui_autumn.py. */
+const LEAF=[[0,0,1,0,1,0,0],[1,0,1,1,1,0,1],[1,1,1,1,1,1,1],[0,1,1,1,1,1,0],[0,0,1,1,1,0,0],[0,0,0,1,0,0,0],[0,0,0,1,0,0,0]];
+const PETAL=[[0,1,1],[1,1,1],[0,1,0]], DOT=[[1,1],[1,1]];
+// ART: swap fillRect(pat) for drawImage(sprite) per mode once pixel-art sprites exist
+const MODES={
+  leaves: {count:22, pat:LEAF,  cols:["#e8743b","#e0a92e","#9c3b1b","#c86a2a","#b5862b","#7a8b3c"], sp:[.3,1],  sway:22, alpha:.85, px:[2,4]},
+  snow:   {count:46, pat:DOT,   cols:["#eaf4ff","#bcd7ef","#ffffff"], sp:[.3,.9], sway:14, alpha:.9,  px:[2,3]},
+  blossom:{count:30, pat:PETAL, cols:["#f7b7d2","#f2a0c4","#ffd6e6"], sp:[.4,1],  sway:20, alpha:.82, px:[2,3]},
+  motes:  {count:16, pat:DOT,   cols:["#ffe3a0","#ffd27a","#fff0c8"], sp:[.05,.2],sway:34, alpha:.5,  px:[2,3]},
+  rain:   {count:50, rain:true, cols:["#9fc0e6","#bcd4f0"], sp:[7,12], alpha:.45, px:[1,2], len:[9,20]},
+  fog:    {count:8,  fog:true,  cols:["#cdd8e4"], sp:[.08,.3], sway:50, alpha:.07, px:[30,60]},
+};
+const SEASONS=[   // northern hemisphere, indexed by getMonth()
+  {label:"winter",icon:"❄",mode:"snow"},   {label:"winter",icon:"❄",mode:"snow"},
+  {label:"spring",icon:"❀",mode:"blossom"},{label:"spring",icon:"❀",mode:"blossom"},{label:"spring",icon:"❀",mode:"blossom"},
+  {label:"summer",icon:"☀",mode:"motes"},  {label:"summer",icon:"☀",mode:"motes"},  {label:"summer",icon:"☀",mode:"motes"},
+  {label:"autumn",icon:"🍂",mode:"leaves"},{label:"autumn",icon:"🍂",mode:"leaves"},{label:"autumn",icon:"🍂",mode:"leaves"},
+  {label:"winter",icon:"❄",mode:"snow"},
+];
+function weatherEffect(code){        // WMO weathercode → overlay (mode:null = keep the season)
+  if(code===0) return {mode:"motes", icon:"☀", label:"clear"};
+  if(code>=1 && code<=3) return {mode:null, icon:"☁", label:"cloudy"};
+  if(code===45||code===48) return {mode:"fog", icon:"🌫", label:"fog"};
+  if((code>=71&&code<=77)||code===85||code===86) return {mode:"snow", icon:"🌨", label:"snow"};
+  if((code>=51&&code<=67)||(code>=80&&code<=82)||code>=95) return {mode:"rain", icon:"🌧", label:"rain"};
+  return {mode:null, icon:"☁", label:"cloudy"};
+}
+const AMB={canvas:null, ctx:null, W:0, H:0, parts:[], mode:"leaves", raf:0};
+const rnd=(a,b)=>a+Math.random()*(b-a);
+function mkPart(m){ const M=MODES[m];
+  return {x:Math.random()*AMB.W, y:-30-Math.random()*AMB.H, px:rnd(M.px[0],M.px[1])|0,
+    sp:rnd(M.sp[0],M.sp[1]), ph:Math.random()*6.28, sw:M.sway?rnd(M.sway*.5,M.sway):0,
+    col:M.cols[Math.random()*M.cols.length|0], len:M.len?rnd(M.len[0],M.len[1]):0}; }
+function ambientResize(){ if(!AMB.canvas) return; AMB.W=AMB.canvas.width=innerWidth; AMB.H=AMB.canvas.height=innerHeight;
+  if(isReduce()) drawAmbient(0); }   // setting canvas.width clears it; repaint the static frame
+function drawAmbient(t){
+  const x=AMB.ctx, M=MODES[AMB.mode]||MODES.leaves; if(!x) return;
+  x.clearRect(0,0,AMB.W,AMB.H); x.globalAlpha=M.alpha;
+  for(const p of AMB.parts){ x.fillStyle=p.col;
+    if(M.rain){ x.fillRect(p.x|0,p.y|0,p.px,p.len); }
+    else if(M.fog){ const ox=p.x+Math.sin(t/2000+p.ph)*p.sw; x.fillRect(ox|0,p.y|0,p.px,(p.px*.5)|0); }
+    else { const pat=M.pat, ox=p.x+(p.sw?Math.sin(t/700+p.ph)*p.sw:0);
+      for(let r=0;r<pat.length;r++)for(let c=0;c<pat[r].length;c++)
+        if(pat[r][c]) x.fillRect((ox+c*p.px)|0,(p.y+r*p.px)|0,p.px,p.px); } }
+  x.globalAlpha=1;
+}
+function loopAmbient(t){
+  const M=MODES[AMB.mode]||MODES.leaves;
+  for(const p of AMB.parts){ p.y+=p.sp;
+    if(!M.rain && !M.fog) p.x+=Math.sin(t/900+p.ph)*.4;
+    if(p.y > AMB.H + (M.rain?p.len:30)){ Object.assign(p, mkPart(AMB.mode)); p.y=-30; } }
+  drawAmbient(t);
+  AMB.raf = requestAnimationFrame(loopAmbient);
+}
+function setAmbient(mode){
+  if(!AMB.canvas) return;
+  AMB.mode = mode in MODES ? mode : "leaves";
+  AMB.parts = Array.from({length:MODES[AMB.mode].count}, ()=>mkPart(AMB.mode));
+  cancelAnimationFrame(AMB.raf); AMB.raf=0;
+  if(isReduce()){ AMB.parts.forEach(p=> p.y=Math.random()*AMB.H); drawAmbient(0); }   // one static frame
+  else if(!document.hidden){ AMB.raf=requestAnimationFrame(loopAmbient); }
+}
+let seasonIdx=new Date().getMonth(), weatherOn=false, ambFlashT=null;
+function ambLabel(icon,label){ $("#ambientBtn").innerHTML=`<span class="amb-ic">${icon}</span><span class="ctl-lb"> ${label}</span>`; }
+function showSeason(){ clearTimeout(ambFlashT); const s=SEASONS[seasonIdx]; setAmbient(s.mode); ambLabel(s.icon,s.label);
+  $("#ambientBtn").classList.remove("live"); weatherOn=false; }
+function ambFlash(msg){ $("#ambientBtn").textContent=msg; clearTimeout(ambFlashT); ambFlashT=setTimeout(showSeason,1800); }
+function toggleWeather(){
+  clearTimeout(ambFlashT);                                   // cancel any pending season-revert
+  if(weatherOn){ showSeason(); return; }                    // live weather → back to season
+  if(!navigator.geolocation){ ambFlash("no geo"); return; }
+  $("#ambientBtn").innerHTML="◌ locating…";
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const lat=(+pos.coords.latitude).toFixed(1), lon=(+pos.coords.longitude).toFixed(1);  // rounded ~11km for privacy
+    const ctrl=new AbortController(), to=setTimeout(()=>ctrl.abort(), 8000);               // don't hang on "locating…"
+    try{
+      const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`, {signal:ctrl.signal});
+      if(!r.ok) throw 0;
+      const j=await r.json(), eff=weatherEffect(j.current_weather.weathercode);
+      clearTimeout(ambFlashT);
+      setAmbient(eff.mode || SEASONS[seasonIdx].mode);
+      ambLabel(eff.icon,eff.label); $("#ambientBtn").classList.add("live"); weatherOn=true;
+    }catch(e){ ambFlash("weather n/a"); }
+    finally{ clearTimeout(to); }
+  }, ()=> ambFlash("weather n/a"), {timeout:8000, maximumAge:600000});
+}
+function initAmbient(){
+  const c=document.createElement("canvas"); c.id="ambient-canvas";
+  AMB.canvas=c; AMB.ctx=c.getContext("2d"); $("#ambience").appendChild(c);
+  ambientResize();
+  addEventListener("resize", ambientResize, {passive:true});
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.hidden){ cancelAnimationFrame(AMB.raf); AMB.raf=0; }
+    else if(!isReduce() && !AMB.raf) AMB.raf=requestAnimationFrame(loopAmbient);
+  });
+  $("#ambientBtn").addEventListener("click", toggleWeather);
+  showSeason();
+}
 
 /* ============================ INIT ============================ */
 buildMachines();
 layout();
 moveCookie(0);
 overview();
+initAmbient();
 </script>
 </body>
 </html>

@@ -18,8 +18,8 @@ are drawn large; the camera scales them down).
 | `cable` | `#cable .track/.flow` | Rail cable sprite + active/visited states | stroke along path | placeholder (SVG dashes) |
 | `capability-leds` | `.bezel .brand .led` | Per-machine indicator lights (count = capability) | 9×9 | placeholder (CSS dots) |
 | `port-icons` | `.ports .port` | ①②③ Concept / What-changed / Code buttons (open the info-layer drawer) | 36×36 each | implemented (glyph buttons; sprite art optional) |
-| `seasonal-{season}` | `#ambience` | Monthly ambient sprite sets: snow / blossom / leaves / … | particle sprites | stub (Phase 4) |
-| `weather-{effect}` | `#ambience` | Weather overlays: rain / sun / fog (open-meteo driven) | particle sprites | stub (Phase 4) |
+| `seasonal-{season}` | `#ambient-canvas` (`MODES`) | Monthly ambient sprite sets: snow / blossom / leaves / motes | pixel sprites (~2–7px) | implemented (canvas rect particles; sprite slot at the `drawImage` ART comment) |
+| `weather-{effect}` | `#ambient-canvas` (`MODES`) | Weather overlays: rain / fog / clear (open-meteo driven, opt-in) | pixel sprites | implemented (canvas rect particles; sprite slot as above) |
 
 **Machine kinds → station** (id · name): monitor·01 Target, terminal·02 By Hand,
 script·03 Script, scanner·04 Recon, mapper·05 Map, reason·06 Reasoning (SIMULATION),
