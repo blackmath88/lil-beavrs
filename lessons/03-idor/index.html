@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IDOR Guide Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  /* Layout: a deterministic walk from URL to flag on a rail — the reference, the
+     session grant, harvested signals, then the enumeration where fetched ids are
+     solid and predicted leaks are blurred (the rest of the table you never touched).
+     Terminal world, committed dark by choice (the portal is a dark terminal). */
+  :root{
+    --bg:#0a0a0a; --panel:#111316; --panel2:#15181c;
+    --border:#2a2e33; --fg:#d4d4d4; --muted:#7f8790; --faint:#565c63;
+    --accent:#3CAFD7; --gold:#C88C37;
+    --win:#2fbf5a; --fail:#ff5a5a; --amber:#e0a63a; --deeper:#9d7bd8;
+    color-scheme:dark;
+    --disp:"Space Mono",ui-monospace,monospace;
+    --body:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--fg); font-family:var(--body);
+    font-size:14px; line-height:1.55; -webkit-text-size-adjust:100%;
+    padding:28px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));
+  }
+  .wrap{max-width:780px; margin:0 auto}
+  a{color:var(--accent)}
+
+  header .eyebrow{font-family:var(--disp); color:var(--accent); font-size:11px; letter-spacing:.22em; text-transform:uppercase}
+  header h1{font-family:var(--disp); font-weight:700; font-size:clamp(26px,7vw,40px); margin:.35em 0 .15em; letter-spacing:-.01em; text-wrap:balance}
+  header .sub{color:var(--muted); font-size:13px}
+  header .sub b{color:var(--fg); font-weight:500}
+  .gen{margin-top:14px; font-size:11.5px; color:var(--faint)}
+  .gen code{color:var(--accent)}
+
+  .flow{margin-top:32px; position:relative; padding-left:26px}
+  .flow::before{content:""; position:absolute; left:7px; top:6px; bottom:30px; width:2px; background:var(--border)}
+  .stage{position:relative; margin-bottom:22px}
+  .stage::before{content:""; position:absolute; left:-26px; top:4px; width:16px; height:16px; border-radius:50%; background:var(--bg); border:2px solid var(--accent)}
+  .stage.flag-stage::before{border-color:var(--win)}
+  .kicker{font-family:var(--disp); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:9px; display:flex; align-items:center; gap:10px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 15px}
+
+  .url{color:var(--accent); word-break:break-all; font-weight:500}
+  .url .id{color:var(--win); font-weight:700}
+  .row{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+  .chip{display:inline-flex; gap:7px; min-width:0; background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12.5px}
+  .chip .k{color:var(--faint); font-size:11px}
+  .chip .v{color:var(--fg); word-break:break-all}
+  .latent{margin-top:10px; font-size:12px; color:var(--gold)}
+  .latent b{color:var(--muted); font-weight:500}
+
+  /* signals (harvested clues) */
+  .clue{display:flex; gap:11px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border)}
+  .clue:first-child{border-top:0}
+  .wt{font-family:var(--disp); font-size:11px; font-weight:700; width:20px; height:20px; flex:none; display:grid; place-items:center; border-radius:5px; background:#1b1e22; color:var(--muted)}
+  .wt.hot{background:#2a230f; color:var(--amber)}
+  .clue .ctext{min-width:0}
+  .clue .ckind{font-family:var(--disp); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)}
+  .clue .cval{color:var(--fg); word-break:break-word; font-size:13px}
+  .clue .cwhy{color:var(--muted); font-size:11.5px; margin-top:1px}
+
+  /* the reference */
+  .tgt{display:flex; gap:11px; align-items:baseline; padding:6px 0}
+  .tgt .s{font-family:var(--disp); font-weight:700; color:var(--accent); width:20px; flex:none}
+  .tgt .p{color:var(--fg); min-width:90px}
+  .tgt .w{color:var(--muted); font-size:12px}
+
+  .oracle .line{display:flex; flex-wrap:wrap; gap:8px 12px; align-items:baseline}
+  .tag{font-family:var(--disp); font-size:10.5px; letter-spacing:.08em; padding:2px 7px; border-radius:5px; text-transform:uppercase}
+  .tag.win{color:#05140a; background:var(--win)} .tag.leak{color:#2a1c05; background:var(--amber)}
+  .oracle .rx{color:var(--accent); word-break:break-all} .oracle .rx.leak{color:var(--amber)}
+  .only{margin-top:9px; font-size:11.5px; color:var(--muted)}
+
+  .pivot .card{border-color:#4a3a12; background:#17130a}
+  .pivot .card b{color:var(--amber)}
+
+  /* enumeration tree */
+  .treehead{justify-content:space-between}
+  .toggle{font-family:var(--disp); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; cursor:pointer}
+  .toggle:focus-visible{outline:2px solid var(--accent)}
+  .branch{border-left:3px solid var(--faint); background:var(--panel); border-radius:0 9px 9px 0; margin:9px 0; overflow:hidden; transition:opacity .2s, filter .2s}
+  .branch.v-own{border-left-color:var(--muted)}
+  .branch.v-win{border-left-color:var(--win); box-shadow:0 0 0 1px rgba(47,191,90,.22),0 0 22px -6px rgba(47,191,90,.5)}
+  .branch.pred{border-left-style:dashed; opacity:.6; filter:blur(.5px)}
+  .branch.pred.open, .branch.pred:focus-within{opacity:1; filter:none}
+  .tree.hide-pred .branch.pred{display:none}
+  .bhead{display:flex; flex-wrap:wrap; align-items:center; gap:7px 10px; width:100%; background:none; border:0; color:inherit; font:inherit; text-align:left; padding:12px 14px; cursor:pointer}
+  .bhead:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+  .dot{font-size:12px; flex:none; color:var(--faint)}
+  .branch:not(.pred) .dot{color:var(--accent)}
+  .verdict{font-family:var(--disp); font-weight:700; font-size:10.5px; letter-spacing:.05em; padding:3px 8px; border-radius:5px; white-space:nowrap; flex:none}
+  .ve-OWN{color:var(--muted); background:#1b1e22}
+  .ve-WIN{color:#06160b; background:var(--win)}
+  .ve-PLEAK{color:var(--win); background:#0f2416; border:1px dashed #1e5733}
+  .ve-SWEEP{color:var(--deeper); background:#1c1630; border:1px dashed #3a2c5c}
+  .pl{flex:1 1 140px; min-width:140px; color:var(--fg); font-size:13px; word-break:break-word; overflow-wrap:anywhere}
+  .mech{font-family:var(--disp); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); flex:none; margin-left:auto}
+  @media (max-width:600px){ .mech{display:none} }
+  .caret{color:var(--faint); flex:none; transition:transform .18s}
+  .bhead[aria-expanded="true"] .caret{transform:rotate(90deg)}
+  .bbody{padding:0 14px 14px 40px; font-size:12.5px; color:var(--muted)}
+  .bbody .lbl{color:var(--faint); text-transform:uppercase; font-size:9.5px; letter-spacing:.14em; font-family:var(--disp); margin:11px 0 3px}
+  .bbody .intent{color:var(--fg)}
+  .bbody .sig .hit{color:var(--amber)} .branch.v-win .bbody .sig .hit{color:var(--win)}
+  .bbody .pred-note{color:var(--deeper)}
+  .firehint{color:var(--faint); font-style:italic}
+
+  .flagcard{border:1px dashed var(--gold); background:#000; border-radius:10px; padding:15px}
+  .flagcard .mt{font-family:var(--disp); color:var(--fail); font-size:11px; letter-spacing:.16em; text-transform:uppercase}
+  .flagcard .who{color:var(--fg); font-size:12.5px; margin:8px 0 2px}
+  .flagcard .who b{color:var(--fg)}
+  .memo{color:#b9b2a2; font-size:12.5px; font-style:italic; margin:7px 0 12px; line-height:1.6}
+  .flag{display:block; color:#fff; background:#4a3100; border:1px solid var(--gold); border-radius:7px; padding:11px 12px; word-break:break-all; font-weight:700}
+
+  .legend{margin-top:30px; border-top:1px solid var(--border); padding-top:16px}
+  .legend .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px 16px; margin-top:4px}
+  .li{display:flex; gap:9px; align-items:baseline; font-size:12px; color:var(--muted)}
+  .sw{width:12px; height:12px; border-radius:3px; flex:none; position:relative; top:1px}
+  .foot{margin-top:22px; font-size:11px; color:var(--faint); line-height:1.6}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lesson 03 · guide map</div>
+    <h1>IDOR Guide Map</h1>
+    <div class="sub">Tricatel-Cyber absence portal · <b>CyberZerk CTF</b></div>
+    <div class="gen">A deterministic walk from URL to flag — no LLM, no payload. <code>recon.py</code> holds the reference, notes what you were granted, and walks neighbouring ids; <b style="color:var(--fg)">solid</b> ids were fetched, <b style="color:var(--deeper)">blurred</b> ones are predicted to leak by the same rule. The oracle alone says WIN.</div>
+  </header>
+
+  <div class="flow">
+
+    <section class="stage">
+      <div class="kicker">01 · The reference</div>
+      <div class="card"><span class="url">https://absences.cyberzerk.fr/?dossier_id=<span class="id">1042</span></span>
+        <div class="row"><span class="chip"><span class="k">param</span><span class="v">dossier_id</span></span>
+        <span class="chip"><span class="k">kind</span><span class="v">sequential integer</span></span>
+        <span class="chip"><span class="k">bound to you?</span><span class="v">no</span></span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">02 · Session &amp; grant</div>
+      <div class="card">
+        <div class="row">
+          <span class="chip"><span class="k">auth</span><span class="v">Employé #8472 · droits standards</span></span>
+          <span class="chip"><span class="k">granted</span><span class="v">dossier 1042 only</span></span>
+        </div>
+        <div class="latent">⌖ the reference is <b>not bound to your identity</b> — you typed the number, not the server.<br><b>⇒ if the server forgot to check ownership, any id you type comes back. That is where the LEAK will appear.</b></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">03 · Signals <span style="color:var(--faint);font-size:10px">harvested by rule, not understood</span></div>
+      <div class="card" id="clues"></div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">04 · The reference to tamper <span style="color:var(--faint);font-size:10px">the one knob</span></div>
+      <div class="card" id="targets"></div>
+    </section>
+
+    <section class="stage oracle">
+      <div class="kicker">05 · Oracle &amp; rule <span style="color:var(--faint);font-size:10px">one judges WIN, one classifies access</span></div>
+      <div class="card">
+        <div class="line"><span class="tag win">win</span><span class="rx">CyberZerk{…}</span><span style="color:var(--faint);font-size:11px">— the only judge of success</span></div>
+        <div class="line" style="margin-top:8px"><span class="tag leak">leak</span><span class="rx leak">HTTP 200 + content for an id outside your grant {1042}</span></div>
+        <div class="only">Each id is classified by this rule; the flag inside a leaked dossier is what the WIN oracle fires on. The guide never calls a win itself.</div>
+      </div>
+    </section>
+
+    <section class="stage pivot">
+      <div class="kicker">06 · Pivot</div>
+      <div class="card">Your own file <b>1042</b> is just a refused holiday request — dull by design. But the id in the URL isn't tied to your session; <b>you</b> chose it. So subtract one: the colleague's file is "right before yours." (The decision a human makes in a second, stated as a rule.)</div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker treehead">
+        <span>07 · Enumeration</span>
+        <button class="toggle" id="rangeBtn">Hide predictions</button>
+      </div>
+      <div class="tree" id="tree"></div>
+    </section>
+
+    <section class="stage flag-stage">
+      <div class="kicker">08 · Flag <span style="color:var(--faint);font-size:10px">oracle fired</span></div>
+      <div class="flagcard">
+        <div class="mt">⛔ Strictement confidentiel — secret médical</div>
+        <div class="who">Dossier #1041 — <b>Arrêt Maladie Prolongé</b> · Employé : <b>Marc V.</b> (Développeur Senior)</div>
+        <p class="memo">Action RH recommandée : « Contester l'arrêt maladie et bloquer les accès informatiques du collaborateur pour éviter toute fuite de données. »</p>
+        <code class="flag">CyberZerk{ID0R_M4n4g3m3nt_T0x1qu3}</code>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="legend">
+    <div class="kicker">Reading the map</div>
+    <div class="grid">
+      <div class="li"><span class="sw" style="background:var(--muted)"></span>● solid = fetched (observed)</div>
+      <div class="li"><span class="sw" style="background:var(--bg);border:1px dashed var(--deeper)"></span>◌ blurred = predicted leak</div>
+      <div class="li"><span class="sw" style="background:var(--win)"></span>WIN / predicted-leak</div>
+      <div class="li"><span class="sw" style="background:var(--deeper)"></span>sweep — beyond the flag</div>
+    </div>
+    <div class="foot" style="margin-top:14px">Tap a branch to collapse its blur and read it. A <b style="color:var(--muted)">predicted</b> id shows a rule's expectation — because no ownership check exists anywhere, every neighbour is reachable — never a real result until fetched. Run <code style="color:var(--accent)">recon.py</code> live to fetch it and turn it solid.</div>
+  </div>
+
+  <div class="foot">Authorized CTF instance only · fixed id range, no enumeration sweeps · one pass, stop at the first flag. The leaked dossier is lab content; the flag is LAB-only.</div>
+</div>
+
+<script>
+  var CLUES = [
+    {wt:3, hot:true,  kind:"reference", val:"dossier_id=1042 sits in the query string", why:"a direct object reference, supplied by the client"},
+    {wt:3, hot:true,  kind:"pattern",   val:"it's a small sequential integer", why:"neighbouring records are guessable by ±1"},
+    {wt:3, hot:true,  kind:"missing",   val:"no ownership token travels with the request", why:"nothing ties the id to who you are"},
+    {wt:2, hot:false, kind:"hint",      val:"“his file should be right before yours”", why:"the id just below yours belongs to someone else"},
+    {wt:2, hot:false, kind:"identity",  val:"session banner is constant: Employé #8472", why:"auth is fixed; only the object you ask for changes"}
+  ];
+  var TARGETS = [
+    {s:"◆", p:"dossier_id", w:"the object reference — the one value you change (1042 → 1041 …)"}
+  ];
+  // Mirrors recon.py's walk. Observed ids carry a real signal; 1040/1039 are in the
+  // walk as CANDIDATE (not fetched offline), predicted to leak by the missing-authz
+  // rule; the sweep is impact, not a step recon.py fires.
+  var BRANCHES = [
+    {status:"OBSERVED", mech:"own-grant", ve:"OWN", payload:"dossier_id=1042",
+     intent:"Your own file — the one the portal linked to your account.", sig:"200 · Demande de Congés · REFUSÉ · owner #8472 (you)"},
+    {status:"OBSERVED", mech:"missing-authz", ve:"WIN", payload:"dossier_id=1041",
+     intent:"The id just before yours. One keystroke, nothing crafted.", sig:"200 · Arrêt Maladie · SECRET MÉDICAL · owner #8471 (Marc V.) → CyberZerk{ID0R_M4n4g3m3nt_T0x1qu3}"},
+    {status:"PREDICTED", mech:"missing-authz", ve:"PLEAK", payload:"dossier_id=1040",
+     intent:"The next id down.", rationale:"same missing-authz class — no ownership check exists, so it returns someone else's file too",
+     hint:"in recon.py’s walk as CANDIDATE (not fetched offline) — run <code>recon.py</code> live to fetch it and confirm"},
+    {status:"PREDICTED", mech:"missing-authz", ve:"PLEAK", payload:"dossier_id=1039",
+     intent:"And the next.", rationale:"same missing-authz class — the hole isn't one file, it's the whole table",
+     hint:"in recon.py’s walk as CANDIDATE (not fetched offline) — run <code>recon.py</code> live to fetch it and confirm"},
+    {status:"PREDICTED", mech:"sweep", ve:"SWEEP", payload:"dossier_id = 1 … N",
+     intent:"Enumerate the entire absence register.", rationale:"beyond the flag — the real impact: every employee's medical file, readable by any logged-in user",
+     hint:"recon.py stops at a tiny fixed range on purpose — the full sweep is the <b>impact</b>, not a step the lesson fires"}
+  ];
+  var VLABEL = {OWN:"OWN", WIN:"LEAK → WIN", PLEAK:"PREDICTED-LEAK", SWEEP:"PREDICTED-SWEEP"};
+
+  function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+  var cl = document.getElementById("clues");
+  CLUES.forEach(function(c){
+    var el = document.createElement("div");
+    el.className = "clue";
+    el.innerHTML =
+      '<span class="wt'+(c.hot?' hot':'')+'">'+c.wt+'</span>'+
+      '<span class="ctext"><span class="ckind">'+esc(c.kind)+'</span>'+
+      '<div class="cval">'+esc(c.val)+'</div>'+
+      '<div class="cwhy">↳ '+esc(c.why)+'</div></span>';
+    cl.appendChild(el);
+  });
+
+  var tg = document.getElementById("targets");
+  TARGETS.forEach(function(t){
+    var el = document.createElement("div");
+    el.className = "tgt";
+    el.innerHTML = '<span class="s">'+esc(t.s)+'</span><span class="p">'+esc(t.p)+'</span><span class="w">'+esc(t.w)+'</span>';
+    tg.appendChild(el);
+  });
+
+  var tree = document.getElementById("tree");
+  BRANCHES.forEach(function(b, i){
+    var pred = b.status === "PREDICTED";
+    var wrap = document.createElement("div");
+    wrap.className = "branch v-"+b.ve.toLowerCase()+" m-"+b.mech+(pred?" pred":"");
+    var bodyId = "bb"+i;
+    var btn = document.createElement("button");
+    btn.className = "bhead"; btn.type="button";
+    btn.setAttribute("aria-expanded","false");
+    btn.setAttribute("aria-controls", bodyId);
+    btn.innerHTML =
+      '<span class="dot">'+(pred?"◌":"●")+'</span>'+
+      '<span class="verdict ve-'+b.ve+'">'+VLABEL[b.ve]+'</span>'+
+      '<span class="pl">'+esc(b.payload)+'</span>'+
+      '<span class="mech">'+esc(b.mech)+'</span>'+
+      '<span class="caret">▸</span>';
+    var body = document.createElement("div");
+    body.className="bbody"; body.id=bodyId; body.hidden=true;
+    var tail = b.sig
+      ? '<div class="lbl">Signal</div><div class="sig"><span class="hit">'+esc(b.sig)+'</span></div>'
+      : '<div class="lbl">Prediction</div><div class="pred-note">'+esc(b.rationale)+'</div>'+
+        '<div class="firehint" style="margin-top:6px">not fetched — run <code>recon.py</code> live to collapse this to solid</div>';
+    body.innerHTML = '<div class="lbl">Intent</div><div class="intent">'+esc(b.intent)+'</div>'+tail;
+    btn.addEventListener("click", function(){
+      var open = btn.getAttribute("aria-expanded")==="true";
+      btn.setAttribute("aria-expanded", String(!open));
+      body.hidden = open;
+      wrap.classList.toggle("open", !open);
+    });
+    wrap.appendChild(btn); wrap.appendChild(body);
+    tree.appendChild(wrap);
+    if (b.ve === "WIN"){ btn.click(); }   // open the win by default
+  });
+
+  var btn = document.getElementById("rangeBtn");
+  btn.addEventListener("click", function(){
+    var hidden = tree.classList.toggle("hide-pred");
+    btn.textContent = hidden ? "Show the range" : "Hide predictions";
+  });
+</script>
+</body>
+</html>
