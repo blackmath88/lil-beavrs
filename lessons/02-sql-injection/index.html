@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SQLi Guide Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  /* Layout: a deterministic guide walked top-to-bottom on a rail — discovery,
+     harvested clues, ranked targets, oracle, then the decision tree where fired
+     branches are solid and predicted ones are blurred (the possibility space).
+     Terminal world, committed dark by choice (the target site is a dark terminal). */
+  :root{
+    --bg:#0a0a0a; --panel:#111316; --panel2:#15181c;
+    --border:#2a2e33; --fg:#d4d4d4; --muted:#7f8790; --faint:#565c63;
+    --accent:#3CAFD7; --gold:#C88C37;
+    --win:#2fbf5a; --fail:#ff5a5a; --amber:#e0a63a; --deeper:#9d7bd8;
+    color-scheme:dark;
+    --disp:"Space Mono",ui-monospace,monospace;
+    --body:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--fg); font-family:var(--body);
+    font-size:14px; line-height:1.55; -webkit-text-size-adjust:100%;
+    padding:28px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));
+  }
+  .wrap{max-width:780px; margin:0 auto}
+  a{color:var(--accent)}
+
+  header .eyebrow{font-family:var(--disp); color:var(--accent); font-size:11px; letter-spacing:.22em; text-transform:uppercase}
+  header h1{font-family:var(--disp); font-weight:700; font-size:clamp(26px,7vw,40px); margin:.35em 0 .15em; letter-spacing:-.01em; text-wrap:balance}
+  header .sub{color:var(--muted); font-size:13px}
+  header .sub b{color:var(--fg); font-weight:500}
+  .gen{margin-top:14px; font-size:11.5px; color:var(--faint)}
+  .gen code{color:var(--accent)}
+
+  .flow{margin-top:32px; position:relative; padding-left:26px}
+  .flow::before{content:""; position:absolute; left:7px; top:6px; bottom:30px; width:2px; background:var(--border)}
+  .stage{position:relative; margin-bottom:22px}
+  .stage::before{content:""; position:absolute; left:-26px; top:4px; width:16px; height:16px; border-radius:50%; background:var(--bg); border:2px solid var(--accent)}
+  .stage.flag-stage::before{border-color:var(--win)}
+  .kicker{font-family:var(--disp); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:9px; display:flex; align-items:center; gap:10px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 15px}
+
+  .url{color:var(--accent); word-break:break-all; font-weight:500}
+  .row{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+  .chip{display:inline-flex; gap:7px; min-width:0; background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12.5px}
+  .chip .k{color:var(--faint); font-size:11px}
+  .chip .v{color:var(--fg); word-break:break-all}
+  .latent{margin-top:10px; font-size:12px; color:var(--gold)}
+  .latent b{color:var(--muted); font-weight:500}
+
+  /* clues */
+  .clue{display:flex; gap:11px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border)}
+  .clue:first-child{border-top:0}
+  .wt{font-family:var(--disp); font-size:11px; font-weight:700; width:20px; height:20px; flex:none; display:grid; place-items:center; border-radius:5px; background:#1b1e22; color:var(--muted)}
+  .wt.hot{background:#2a230f; color:var(--amber)}
+  .clue .ctext{min-width:0}
+  .clue .ckind{font-family:var(--disp); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)}
+  .clue .cval{color:var(--fg); word-break:break-word; font-size:13px}
+  .clue .cwhy{color:var(--muted); font-size:11.5px; margin-top:1px}
+
+  /* targets */
+  .tgt{display:flex; gap:11px; align-items:baseline; padding:6px 0}
+  .tgt .s{font-family:var(--disp); font-weight:700; color:var(--accent); width:20px; flex:none}
+  .tgt .p{color:var(--fg); min-width:90px}
+  .tgt .w{color:var(--muted); font-size:12px}
+
+  .oracle .line{display:flex; flex-wrap:wrap; gap:8px 12px; align-items:baseline}
+  .tag{font-family:var(--disp); font-size:10.5px; letter-spacing:.08em; padding:2px 7px; border-radius:5px; text-transform:uppercase}
+  .tag.win{color:#05140a; background:var(--win)} .tag.lose{color:#1a0505; background:var(--fail)}
+  .oracle .rx{color:var(--accent); word-break:break-all} .oracle .rx.lose{color:var(--fail)}
+  .only{margin-top:9px; font-size:11.5px; color:var(--muted)}
+
+  .pivot .card{border-color:#4a3a12; background:#17130a}
+  .pivot .card b{color:var(--amber)}
+
+  /* decision tree */
+  .treehead{justify-content:space-between}
+  .toggle{font-family:var(--disp); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; cursor:pointer}
+  .toggle:focus-visible{outline:2px solid var(--accent)}
+  .branch{border-left:3px solid var(--faint); background:var(--panel); border-radius:0 9px 9px 0; margin:9px 0; overflow:hidden; transition:opacity .2s, filter .2s}
+  .branch.m-baseline{border-left-color:var(--muted)}
+  .branch.v-same{border-left-color:var(--amber)}
+  .branch.v-win{border-left-color:var(--win); box-shadow:0 0 0 1px rgba(47,191,90,.22),0 0 22px -6px rgba(47,191,90,.5)}
+  .branch.pred{border-left-style:dashed; opacity:.6; filter:blur(.5px)}
+  .branch.pred.open, .branch.pred:focus-within{opacity:1; filter:none}
+  .tree.hide-pred .branch.pred{display:none}
+  .bhead{display:flex; align-items:center; gap:10px; width:100%; background:none; border:0; color:inherit; font:inherit; text-align:left; padding:12px 14px; cursor:pointer}
+  .bhead:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+  .dot{font-size:12px; flex:none; color:var(--faint)}
+  .branch:not(.pred) .dot{color:var(--accent)}
+  .verdict{font-family:var(--disp); font-weight:700; font-size:10.5px; letter-spacing:.05em; padding:3px 8px; border-radius:5px; white-space:nowrap; flex:none}
+  .ve-BASELINE{color:var(--muted); background:#1b1e22}
+  .ve-SAME{color:var(--amber); background:#2a230f}
+  .ve-WIN{color:#06160b; background:var(--win)}
+  .ve-PWIN{color:var(--win); background:#0f2416; border:1px dashed #1e5733}
+  .ve-DEEPER{color:var(--deeper); background:#1c1630; border:1px dashed #3a2c5c}
+  .pl{flex:1; min-width:0; color:var(--fg); font-size:13px; word-break:break-all}
+  .mech{font-family:var(--disp); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); flex:none}
+  .caret{color:var(--faint); flex:none; transition:transform .18s}
+  .bhead[aria-expanded="true"] .caret{transform:rotate(90deg)}
+  .bbody{padding:0 14px 14px 40px; font-size:12.5px; color:var(--muted)}
+  .bbody .lbl{color:var(--faint); text-transform:uppercase; font-size:9.5px; letter-spacing:.14em; font-family:var(--disp); margin:11px 0 3px}
+  .bbody .intent{color:var(--fg)}
+  .bbody .sig .hit{color:var(--fail)} .branch.v-win .bbody .sig .hit{color:var(--win)}
+  .bbody .pred-note{color:var(--deeper)} .branch.v-win~* .pred-note{}
+  .firehint{color:var(--faint); font-style:italic}
+
+  .flagcard{border:1px dashed var(--gold); background:#000; border-radius:10px; padding:15px}
+  .flagcard .mt{font-family:var(--disp); color:var(--gold); font-size:11px; letter-spacing:.16em; text-transform:uppercase}
+  .memo{color:#b9b2a2; font-size:12.5px; font-style:italic; margin:9px 0 12px; line-height:1.6}
+  .flag{display:block; color:#fff; background:#4a3100; border:1px solid var(--gold); border-radius:7px; padding:11px 12px; word-break:break-all; font-weight:700}
+
+  .legend{margin-top:30px; border-top:1px solid var(--border); padding-top:16px}
+  .legend .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px 16px; margin-top:4px}
+  .li{display:flex; gap:9px; align-items:baseline; font-size:12px; color:var(--muted)}
+  .sw{width:12px; height:12px; border-radius:3px; flex:none; position:relative; top:1px}
+  .foot{margin-top:22px; font-size:11px; color:var(--faint); line-height:1.6}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lesson 02 · guide map</div>
+    <h1>SQLi Guide Map</h1>
+    <div class="sub">Tricatel-Cyber HR Portal · <b>CyberZerk CTF</b></div>
+    <div class="gen">A deterministic walk from URL to flag — no LLM. <code>guide.py</code> harvests the page, ranks targets, and fires a probe ladder; <b style="color:var(--fg)">solid</b> branches were fired, <b style="color:var(--deeper)">blurred</b> ones are predicted by rule. The oracle alone says WIN.</div>
+  </header>
+
+  <div class="flow">
+
+    <section class="stage">
+      <div class="kicker">01 · Target</div>
+      <div class="card"><span class="url">https://sql.cyberzerk.fr/</span>
+        <div class="row"><span class="chip"><span class="k">method</span><span class="v">POST</span></span>
+        <span class="chip"><span class="k">action</span><span class="v">(same URL)</span></span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">02 · Surface &amp; stack</div>
+      <div class="card">
+        <div class="row">
+          <span class="chip"><span class="k">input</span><span class="v">username · text · required</span></span>
+          <span class="chip"><span class="k">input</span><span class="v">password · password · required</span></span>
+        </div>
+        <div class="row">
+          <span class="chip"><span class="k">cookie</span><span class="v">PHPSESSID ⇒ PHP</span></span>
+          <span class="chip"><span class="k">via</span><span class="v">Caddy</span></span>
+        </div>
+        <div class="latent">⌖ latent success region — <b>defined in CSS, never rendered:</b> .admin-header · .dump-box · .dump-title · .flag<br><b>⇒ the win is injected server-side. That is where WIN will appear.</b></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">03 · Clues <span style="color:var(--faint);font-size:10px">harvested by rule, not understood</span></div>
+      <div class="card" id="clues"></div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">04 · Targets <span style="color:var(--faint);font-size:10px">ranked injection points</span></div>
+      <div class="card" id="targets"></div>
+    </section>
+
+    <section class="stage oracle">
+      <div class="kicker">05 · Oracle <span style="color:var(--faint);font-size:10px">the only judge</span></div>
+      <div class="card">
+        <div class="line"><span class="tag win">win</span><span class="rx">CyberZerk{…}</span></div>
+        <div class="line" style="margin-top:8px"><span class="tag lose">lose</span><span class="rx lose">token “ERR_AUTH”</span></div>
+        <div class="only">Every branch is classified by diffing against the baseline through this. The guide never calls a win itself.</div>
+      </div>
+    </section>
+
+    <section class="stage pivot">
+      <div class="kicker">06 · Pivot</div>
+      <div class="card">The lone apostrophe changed <b>nothing</b> — so errors are hidden, not absent. The guide switches from <b>error-based</b> to <b>logic-based</b> detection. (The decision we made by hand, now a rule.)</div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker treehead">
+        <span>07 · Decision tree</span>
+        <button class="toggle" id="rangeBtn" aria-pressed="true">Hide predictions</button>
+      </div>
+      <div class="tree" id="tree"></div>
+    </section>
+
+    <section class="stage flag-stage">
+      <div class="kicker">08 · Flag <span style="color:var(--faint);font-size:10px">oracle fired</span></div>
+      <div class="flagcard">
+        <div class="mt">&gt;&gt; Memo_Direction.txt</div>
+        <p class="memo">“The dev team is at breaking point. We're not replacing anyone — just give them a foosball table and remind them we're a family to make up for the 60-hour weeks. If they crack, it's because they're not cut out for cyber.”</p>
+        <code class="flag">CyberZerk{SQL_1nj3ct10n_C4us3d_By_Burn0ut}</code>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="legend">
+    <div class="kicker">Reading the map</div>
+    <div class="grid">
+      <div class="li"><span class="sw" style="background:var(--muted)"></span>● solid = fired (observed)</div>
+      <div class="li"><span class="sw" style="background:var(--bg);border:1px dashed var(--deeper)"></span>◌ blurred = predicted by rule</div>
+      <div class="li"><span class="sw" style="background:var(--win)"></span>WIN / predicted-win</div>
+      <div class="li"><span class="sw" style="background:var(--deeper)"></span>deeper — beyond the flag</div>
+    </div>
+    <div class="foot" style="margin-top:14px">Tap a branch to collapse its blur and read it. A <b style="color:var(--muted)">predicted</b> branch shows a rule's expectation, never a real result — run <code style="color:var(--accent)">guide.py --live</code> to fire it and turn it solid.</div>
+  </div>
+
+  <div class="foot">Authorized CTF instance only · fixed probe ladder, no fuzzing · one pass, stop at the first flag.</div>
+</div>
+
+<script>
+  var CLUES = [
+    {wt:3, hot:true,  kind:"comment",    val:"Zone admin une fois exploitée", why:"developer comment left in the source"},
+    {wt:3, hot:true,  kind:"devnote",    val:"TODO: Ajouter la vérification CSRF et le hash des mots de passe.", why:"unfinished work the dev admitted to"},
+    {wt:3, hot:true,  kind:"devnote",    val:"Note: poussé en prod à 04:12 AM. Trop fatigué, je ferai ça lundi.", why:"unfinished work the dev admitted to"},
+    {wt:2, hot:false, kind:"identifier", val:"dump-title", why:"identifier hints at a hidden / admin / success region"},
+    {wt:2, hot:false, kind:"identifier", val:"flag", why:"identifier hints at a hidden / admin / success region"},
+    {wt:2, hot:false, kind:"identifier", val:"admin-header", why:"identifier hints at a hidden / admin / success region"}
+  ];
+  var TARGETS = [
+    {s:4, p:"username", w:"string field concatenated into the auth query"},
+    {s:1, p:"password", w:"secondary field — also reaches the query"}
+  ];
+  // Verified guide.py output. Observed branches carry a real signal; predicted carry a rationale.
+  var BRANCHES = [
+    {status:"OBSERVED", mech:"baseline",    ve:"BASELINE", payload:"admin / wrong",
+     intent:"An ordinary failed login — the reference.", sig:"response contains ERR_AUTH"},
+    {status:"OBSERVED", mech:"error-probe", ve:"SAME", payload:"admin'",
+     intent:"Lone apostrophe — is error-based detection possible?", sig:"still ERR_AUTH — errors hidden, not safe"},
+    {status:"OBSERVED", mech:"auth-bypass", ve:"WIN", payload:"admin' -- ",
+     intent:"Close the quote, comment out the password check.", sig:"CyberZerk{SQL_1nj3ct10n_C4us3d_By_Burn0ut}"},
+    {status:"PREDICTED", mech:"auth-bypass", ve:"PWIN", payload:"admin' OR '1'='1' -- ",
+     intent:"OR-true tautology + comment.", rationale:"same mechanism class as a confirmed bypass"},
+    {status:"PREDICTED", mech:"auth-bypass", ve:"PWIN", payload:"admin'#",
+     intent:"MySQL '#' comment variant.", rationale:"same mechanism class as a confirmed bypass"},
+    {status:"PREDICTED", mech:"data-read", ve:"DEEPER", payload:"' UNION SELECT 1,2,3 -- ",
+     intent:"Map columns / exfiltrate data.", rationale:"plausible once injection is confirmed — goes beyond the flag"},
+    {status:"PREDICTED", mech:"blind-time", ve:"DEEPER", payload:"x' AND SLEEP(3) -- ",
+     intent:"Confirm injection by timing.", rationale:"plausible once injection is confirmed — goes beyond the flag"}
+  ];
+  var VLABEL = {BASELINE:"BASELINE", SAME:"SAME", WIN:"WIN", PWIN:"PREDICTED-WIN", DEEPER:"PREDICTED-DEEPER"};
+
+  function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+  var cl = document.getElementById("clues");
+  CLUES.forEach(function(c){
+    var el = document.createElement("div");
+    el.className = "clue";
+    el.innerHTML =
+      '<span class="wt'+(c.hot?' hot':'')+'">'+c.wt+'</span>'+
+      '<span class="ctext"><span class="ckind">'+esc(c.kind)+'</span>'+
+      '<div class="cval">'+esc(c.val)+'</div>'+
+      '<div class="cwhy">↳ '+esc(c.why)+'</div></span>';
+    cl.appendChild(el);
+  });
+
+  var tg = document.getElementById("targets");
+  TARGETS.forEach(function(t){
+    var el = document.createElement("div");
+    el.className = "tgt";
+    el.innerHTML = '<span class="s">'+t.s+'</span><span class="p">'+esc(t.p)+'</span><span class="w">'+esc(t.w)+'</span>';
+    tg.appendChild(el);
+  });
+
+  var tree = document.getElementById("tree");
+  BRANCHES.forEach(function(b, i){
+    var pred = b.status === "PREDICTED";
+    var wrap = document.createElement("div");
+    wrap.className = "branch v-"+b.ve+" m-"+b.mech+(pred?" pred":"");
+    var bodyId = "bb"+i;
+    var btn = document.createElement("button");
+    btn.className = "bhead"; btn.type="button";
+    btn.setAttribute("aria-expanded","false");
+    btn.setAttribute("aria-controls", bodyId);
+    btn.innerHTML =
+      '<span class="dot">'+(pred?"◌":"●")+'</span>'+
+      '<span class="verdict ve-'+b.ve+'">'+VLABEL[b.ve]+'</span>'+
+      '<span class="pl">'+esc(b.payload)+'</span>'+
+      '<span class="mech">'+esc(b.mech)+'</span>'+
+      '<span class="caret">▸</span>';
+    var body = document.createElement("div");
+    body.className="bbody"; body.id=bodyId; body.hidden=true;
+    var tail = b.sig
+      ? '<div class="lbl">Signal</div><div class="sig"><span class="hit">'+esc(b.sig)+'</span></div>'
+      : '<div class="lbl">Prediction</div><div class="pred-note">'+esc(b.rationale)+'</div>'+
+        '<div class="firehint" style="margin-top:6px">not fired — run <code>guide.py --live</code> to collapse this to solid</div>';
+    body.innerHTML = '<div class="lbl">Intent</div><div class="intent">'+esc(b.intent)+'</div>'+tail;
+    btn.addEventListener("click", function(){
+      var open = btn.getAttribute("aria-expanded")==="true";
+      btn.setAttribute("aria-expanded", String(!open));
+      body.hidden = open;
+      wrap.classList.toggle("open", !open);
+    });
+    wrap.appendChild(btn); wrap.appendChild(body);
+    tree.appendChild(wrap);
+    if (b.ve === "WIN"){ btn.click(); }   // open the win by default
+  });
+
+  var btn = document.getElementById("rangeBtn");
+  btn.addEventListener("click", function(){
+    var hidden = tree.classList.toggle("hide-pred");
+    btn.setAttribute("aria-pressed", String(!hidden));
+    btn.textContent = hidden ? "Show the range" : "Hide predictions";
+  });
+</script>
+</body>
+</html>
