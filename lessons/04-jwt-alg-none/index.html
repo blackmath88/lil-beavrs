@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JWT alg:none Guide Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  /* Layout: a deterministic walk from token to flag on a rail — decode the held
+     token, name the lever (the server trusts header.alg), then the forge set where
+     the sent variant is solid and predicted ones are blurred. Terminal world,
+     committed dark by choice (the portal is a dark terminal). */
+  :root{
+    --bg:#0a0a0a; --panel:#111316; --panel2:#15181c;
+    --border:#2a2e33; --fg:#d4d4d4; --muted:#7f8790; --faint:#565c63;
+    --accent:#3CAFD7; --gold:#C88C37;
+    --win:#2fbf5a; --fail:#ff5a5a; --amber:#e0a63a; --deeper:#9d7bd8;
+    color-scheme:dark;
+    --disp:"Space Mono",ui-monospace,monospace;
+    --body:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--fg); font-family:var(--body);
+    font-size:14px; line-height:1.55; -webkit-text-size-adjust:100%;
+    padding:28px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));
+  }
+  .wrap{max-width:780px; margin:0 auto}
+  a{color:var(--accent)}
+
+  header .eyebrow{font-family:var(--disp); color:var(--accent); font-size:11px; letter-spacing:.22em; text-transform:uppercase}
+  header h1{font-family:var(--disp); font-weight:700; font-size:clamp(24px,6.4vw,38px); margin:.35em 0 .15em; letter-spacing:-.01em; text-wrap:balance}
+  header .sub{color:var(--muted); font-size:13px}
+  header .sub b{color:var(--fg); font-weight:500}
+  .gen{margin-top:14px; font-size:11.5px; color:var(--faint)}
+  .gen code{color:var(--accent)}
+
+  .flow{margin-top:32px; position:relative; padding-left:26px}
+  .flow::before{content:""; position:absolute; left:7px; top:6px; bottom:30px; width:2px; background:var(--border)}
+  .stage{position:relative; margin-bottom:22px}
+  .stage::before{content:""; position:absolute; left:-26px; top:4px; width:16px; height:16px; border-radius:50%; background:var(--bg); border:2px solid var(--accent)}
+  .stage.flag-stage::before{border-color:var(--win)}
+  .kicker{font-family:var(--disp); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin-bottom:9px; display:flex; align-items:center; gap:10px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 15px}
+
+  /* the token, as three colour-coded segments */
+  .jwt{word-break:break-all; font-size:12.5px; line-height:1.7}
+  .jwt .h{color:var(--fail)} .jwt .p{color:var(--deeper)} .jwt .s{color:var(--accent)} .jwt .dot{color:var(--faint)}
+  .seglbl{margin-top:8px; font-size:11px; color:var(--faint); display:flex; flex-wrap:wrap; gap:4px 14px}
+  .seglbl b{font-weight:500}
+  .seglbl .lh{color:var(--fail)} .seglbl .lp{color:var(--deeper)} .seglbl .ls{color:var(--accent)}
+  .row{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+  .chip{display:inline-flex; gap:7px; min-width:0; background:var(--panel2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; font-size:12.5px}
+  .chip .k{color:var(--faint); font-size:11px}
+  .chip .v{color:var(--fg); word-break:break-all}
+  .latent{margin-top:10px; font-size:12px; color:var(--gold)}
+  .latent b{color:var(--muted); font-weight:500}
+
+  /* signals (harvested clues) */
+  .clue{display:flex; gap:11px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--border)}
+  .clue:first-child{border-top:0}
+  .wt{font-family:var(--disp); font-size:11px; font-weight:700; width:20px; height:20px; flex:none; display:grid; place-items:center; border-radius:5px; background:#1b1e22; color:var(--muted)}
+  .wt.hot{background:#2a230f; color:var(--amber)}
+  .clue .ctext{min-width:0}
+  .clue .ckind{font-family:var(--disp); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint)}
+  .clue .cval{color:var(--fg); word-break:break-word; font-size:13px}
+  .clue .cwhy{color:var(--muted); font-size:11.5px; margin-top:1px}
+
+  /* the lever */
+  .tgt{display:flex; gap:11px; align-items:baseline; padding:6px 0}
+  .tgt .s{font-family:var(--disp); font-weight:700; color:var(--accent); width:20px; flex:none}
+  .tgt .p{color:var(--fg); min-width:90px}
+  .tgt .w{color:var(--muted); font-size:12px}
+
+  .oracle .line{display:flex; flex-wrap:wrap; gap:8px 12px; align-items:baseline}
+  .tag{font-family:var(--disp); font-size:10.5px; letter-spacing:.08em; padding:2px 7px; border-radius:5px; text-transform:uppercase}
+  .tag.win{color:#05140a; background:var(--win)} .tag.rej{color:#1a0505; background:var(--fail)}
+  .oracle .rx{color:var(--accent); word-break:break-all} .oracle .rx.rej{color:var(--fail)}
+  .only{margin-top:9px; font-size:11.5px; color:var(--muted)}
+
+  .pivot .card{border-color:#4a3a12; background:#17130a}
+  .pivot .card b{color:var(--amber)}
+
+  /* forge-set tree */
+  .treehead{justify-content:space-between}
+  .toggle{font-family:var(--disp); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; cursor:pointer}
+  .toggle:focus-visible{outline:2px solid var(--accent)}
+  .branch{border-left:3px solid var(--faint); background:var(--panel); border-radius:0 9px 9px 0; margin:9px 0; overflow:hidden; transition:opacity .2s, filter .2s}
+  .branch.v-base{border-left-color:var(--muted)}
+  .branch.v-win{border-left-color:var(--win); box-shadow:0 0 0 1px rgba(47,191,90,.22),0 0 22px -6px rgba(47,191,90,.5)}
+  .branch.pred{border-left-style:dashed; opacity:.6; filter:blur(.5px)}
+  .branch.pred.open, .branch.pred:focus-within{opacity:1; filter:none}
+  .tree.hide-pred .branch.pred{display:none}
+  .bhead{display:flex; flex-wrap:wrap; align-items:center; gap:7px 10px; width:100%; background:none; border:0; color:inherit; font:inherit; text-align:left; padding:12px 14px; cursor:pointer}
+  .bhead:focus-visible{outline:2px solid var(--accent); outline-offset:-2px}
+  .dot{font-size:12px; flex:none; color:var(--faint)}
+  .branch:not(.pred) .dot{color:var(--accent)}
+  .verdict{font-family:var(--disp); font-weight:700; font-size:10.5px; letter-spacing:.05em; padding:3px 8px; border-radius:5px; white-space:nowrap; flex:none}
+  .ve-BASE{color:var(--muted); background:#1b1e22}
+  .ve-WIN{color:#06160b; background:var(--win)}
+  .ve-PFORGE{color:var(--win); background:#0f2416; border:1px dashed #1e5733}
+  .ve-DEEPER{color:var(--deeper); background:#1c1630; border:1px dashed #3a2c5c}
+  .pl{flex:1 1 140px; min-width:140px; color:var(--fg); font-size:13px; word-break:break-word; overflow-wrap:anywhere}
+  .mech{font-family:var(--disp); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); flex:none; margin-left:auto}
+  @media (max-width:600px){ .mech{display:none} }
+  .caret{color:var(--faint); flex:none; transition:transform .18s}
+  .bhead[aria-expanded="true"] .caret{transform:rotate(90deg)}
+  .bbody{padding:0 14px 14px 40px; font-size:12.5px; color:var(--muted)}
+  .bbody .lbl{color:var(--faint); text-transform:uppercase; font-size:9.5px; letter-spacing:.14em; font-family:var(--disp); margin:11px 0 3px}
+  .bbody .intent{color:var(--fg)}
+  .bbody .sig .hit{color:var(--amber)} .branch.v-win .bbody .sig .hit{color:var(--win)}
+  .bbody .pred-note{color:var(--deeper)}
+  .firehint{color:var(--faint); font-style:italic}
+
+  .flagcard{border:1px dashed var(--gold); background:#000; border-radius:10px; padding:15px}
+  .flagcard .mt{font-family:var(--disp); color:var(--win); font-size:11px; letter-spacing:.16em; text-transform:uppercase}
+  .flagcard .who{color:var(--fg); font-size:12.5px; margin:8px 0 2px}
+  .memo{color:#b9b2a2; font-size:12.5px; font-style:italic; margin:7px 0 12px; line-height:1.6}
+  .flag{display:block; color:#fff; background:#4a3100; border:1px solid var(--gold); border-radius:7px; padding:11px 12px; word-break:break-all; font-weight:700}
+
+  .legend{margin-top:30px; border-top:1px solid var(--border); padding-top:16px}
+  .legend .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px 16px; margin-top:4px}
+  .li{display:flex; gap:9px; align-items:baseline; font-size:12px; color:var(--muted)}
+  .sw{width:12px; height:12px; border-radius:3px; flex:none; position:relative; top:1px}
+  .foot{margin-top:22px; font-size:11px; color:var(--faint); line-height:1.6}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lesson 04 · guide map</div>
+    <h1>JWT alg:none Guide Map</h1>
+    <div class="sub">Tricatel-Cyber Manager Area · <b>CyberZerk CTF</b></div>
+    <div class="gen">A deterministic walk from token to flag — no LLM, no key cracking. <code>recon.py</code> decodes the token you hold, names the lever, and forges a fixed set of alg-downgrade variants; the <b style="color:var(--fg)">solid</b> one was sent, <b style="color:var(--deeper)">blurred</b> ones are predicted. The oracle alone says WIN.</div>
+  </header>
+
+  <div class="flow">
+
+    <section class="stage">
+      <div class="kicker">01 · The token you hold</div>
+      <div class="card">
+        <div class="jwt"><span class="h">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</span><span class="dot">.</span><span class="p">eyJ1c2VyIjoiZW1wbG95ZTg0NzIiLCJyb2xlIjoiZW1wbG95ZSJ9</span><span class="dot">.</span><span class="s">s9ip1QaEfGwDjSo2VMn4p3fQ1PEGp8GixtSX-jeg6sM</span></div>
+        <div class="seglbl"><span><b class="lh">header</b> alg=HS256</span><span><b class="lp">payload</b> role=employe</span><span><b class="ls">signature</b> HMAC-SHA256</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">02 · Decode &amp; lever</div>
+      <div class="card">
+        <div class="row">
+          <span class="chip"><span class="k">header.alg</span><span class="v">HS256</span></span>
+          <span class="chip"><span class="k">payload.role</span><span class="v">employe</span></span>
+          <span class="chip"><span class="k">signature</span><span class="v">present · 43 chars</span></span>
+        </div>
+        <div class="latent">⌖ the signature is real — but the server reads <b>which algorithm to verify with</b> from <b>header.alg</b>, and trusts it.<br><b>⇒ you can't forge the HMAC without the key. You don't have to. Tell it not to check.</b></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">03 · Signals <span style="color:var(--faint);font-size:10px">harvested by rule, not understood</span></div>
+      <div class="card" id="clues"></div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker">04 · The lever to flip <span style="color:var(--faint);font-size:10px">the one knob</span></div>
+      <div class="card" id="targets"></div>
+    </section>
+
+    <section class="stage oracle">
+      <div class="kicker">05 · Oracle &amp; reject <span style="color:var(--faint);font-size:10px">one judges WIN, one marks rejection</span></div>
+      <div class="card">
+        <div class="line"><span class="tag win">win</span><span class="rx">CyberZerk{…}</span><span style="color:var(--faint);font-size:11px">— the only judge of success</span></div>
+        <div class="line" style="margin-top:8px"><span class="tag rej">reject</span><span class="rx rej">401 / 403 · “invalid signature”</span></div>
+        <div class="only">A proper verifier throws the forgery back. Acceptance without a flag still means the signature check was skipped — but only the WIN oracle calls it a win.</div>
+      </div>
+    </section>
+
+    <section class="stage pivot">
+      <div class="kicker">06 · Pivot</div>
+      <div class="card">The signature is a real HMAC — you'd need the server's secret key to forge it, and you don't have it. So don't attack the key: set <b>alg: none</b>, drop the signature, and the server's own rule says the token is "unsecured, already verified." You changed <b>how</b> it verifies, not <b>what</b>. (The decision a human makes once, stated as a rule.)</div>
+    </section>
+
+    <section class="stage">
+      <div class="kicker treehead">
+        <span>07 · Forge set</span>
+        <button class="toggle" id="rangeBtn">Hide predictions</button>
+      </div>
+      <div class="tree" id="tree"></div>
+    </section>
+
+    <section class="stage flag-stage">
+      <div class="kicker">08 · Flag <span style="color:var(--faint);font-size:10px">oracle fired</span></div>
+      <div class="flagcard">
+        <div class="mt">✓ Espace Manager — accès accordé</div>
+        <div class="who">Sent <code>alg:none</code> · <code>role:admin</code> · empty signature → the server skipped verification and let you in.</div>
+        <p class="memo">The HMAC key was never touched. The lock is still sound — it just did what the token told it to do.</p>
+        <code class="flag">CyberZerk{JWT_4lg_N0n3_C_3st_N0n}</code>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="legend">
+    <div class="kicker">Reading the map</div>
+    <div class="grid">
+      <div class="li"><span class="sw" style="background:var(--muted)"></span>● solid = sent (observed)</div>
+      <div class="li"><span class="sw" style="background:var(--bg);border:1px dashed var(--deeper)"></span>◌ blurred = predicted variant</div>
+      <div class="li"><span class="sw" style="background:var(--win)"></span>WIN / predicted-forge</div>
+      <div class="li"><span class="sw" style="background:var(--deeper)"></span>trick — a flawed-verifier edge case</div>
+    </div>
+    <div class="foot" style="margin-top:14px">Tap a branch to collapse its blur and read it. A <b style="color:var(--muted)">predicted</b> variant shows a rule's expectation — a known <code>alg:none</code> casing/shape dodge — never a real result until sent. Run <code style="color:var(--accent)">recon.py</code> live to send it and turn it solid.</div>
+  </div>
+
+  <div class="foot">Authorized CTF instance only · fixed forge set, no key cracking, no fuzzing · one pass, stop at the first flag. The token and flag are LAB-only.</div>
+</div>
+
+<script>
+  var CLUES = [
+    {wt:3, hot:true,  kind:"header",   val:"alg is declared inside the token (header.alg)", why:"the client supplies the verification algorithm the server uses"},
+    {wt:3, hot:true,  kind:"spec",     val:"“none” is a legal JWT algorithm — “unsecured”", why:"a verifier that honours it skips the signature entirely"},
+    {wt:3, hot:true,  kind:"structure",val:"the signature is just the 3rd segment", why:"drop it (and the key stops mattering) if alg says none"},
+    {wt:2, hot:false, kind:"payload",  val:"role=employe sits in the payload, unprotected once unsigned", why:"flip it to admin in the same forgery"},
+    {wt:2, hot:false, kind:"identity", val:"user=employe8472 is kept — only alg and role change", why:"you stay you; you just claim a role and disable the check"}
+  ];
+  var TARGETS = [
+    {s:"◆", p:"header.alg", w:"the verification algorithm — the one value you change (HS256 → none)"}
+  ];
+  // Mirrors recon.py's forge set. Observed = sent (BASELINE + the captured win);
+  // the casing/shape variants are in the set but un-sent offline -> predicted.
+  var BRANCHES = [
+    {status:"OBSERVED", mech:"baseline", ve:"BASE", payload:"original · alg=HS256 role=employe",
+     intent:"The token you were issued, sent unchanged.", sig:"200 · Espace Employé · verified normally · the reference"},
+    {status:"OBSERVED", mech:"alg-none", ve:"WIN", payload:"alg=none role=admin · header.payload.",
+     intent:"Declare none, flip role, strip the sig, keep the trailing dot.", sig:"200 · Espace Manager — accès accordé → CyberZerk{JWT_4lg_N0n3_C_3st_N0n}"},
+    {status:"PREDICTED", mech:"alg-none", ve:"PFORGE", payload:"alg=none role=admin · header.payload (2 segments)",
+     intent:"Same forgery, no trailing dot — a two-segment token.", rationale:"some parsers accept the two-segment shape; same none-algorithm class",
+     hint:"in recon.py’s set as CANDIDATE (not sent offline) — run <code>recon.py</code> live to send it"},
+    {status:"PREDICTED", mech:"alg-none", ve:"PFORGE", payload:"alg=None / alg=NONE",
+     intent:"Casing dodges for a blocklist that only matches lowercase “none”.", rationale:"many libraries compare alg case-insensitively — a naive deny-list does not",
+     hint:"in recon.py’s set as CANDIDATE (not sent offline) — run <code>recon.py</code> live to send it"},
+    {status:"PREDICTED", mech:"sig-skip", ve:"DEEPER", payload:"alg=HS256 · empty signature",
+     intent:"Keep the declared algorithm, send a zero-length signature.", rationale:"a flawed verifier that treats an empty signature as “nothing to check” passes it — a different bug, same lesson",
+     hint:"a known flawed-verifier edge case — run <code>recon.py</code> live to test it here"}
+  ];
+  var VLABEL = {BASE:"BASELINE", WIN:"FORGE → WIN", PFORGE:"PREDICTED", DEEPER:"PREDICTED-TRICK"};
+
+  function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+  var cl = document.getElementById("clues");
+  CLUES.forEach(function(c){
+    var el = document.createElement("div");
+    el.className = "clue";
+    el.innerHTML =
+      '<span class="wt'+(c.hot?' hot':'')+'">'+c.wt+'</span>'+
+      '<span class="ctext"><span class="ckind">'+esc(c.kind)+'</span>'+
+      '<div class="cval">'+esc(c.val)+'</div>'+
+      '<div class="cwhy">↳ '+esc(c.why)+'</div></span>';
+    cl.appendChild(el);
+  });
+
+  var tg = document.getElementById("targets");
+  TARGETS.forEach(function(t){
+    var el = document.createElement("div");
+    el.className = "tgt";
+    el.innerHTML = '<span class="s">'+esc(t.s)+'</span><span class="p">'+esc(t.p)+'</span><span class="w">'+esc(t.w)+'</span>';
+    tg.appendChild(el);
+  });
+
+  var tree = document.getElementById("tree");
+  BRANCHES.forEach(function(b, i){
+    var pred = b.status === "PREDICTED";
+    var wrap = document.createElement("div");
+    wrap.className = "branch v-"+b.ve.toLowerCase()+" m-"+b.mech+(pred?" pred":"");
+    var bodyId = "bb"+i;
+    var btn = document.createElement("button");
+    btn.className = "bhead"; btn.type="button";
+    btn.setAttribute("aria-expanded","false");
+    btn.setAttribute("aria-controls", bodyId);
+    btn.innerHTML =
+      '<span class="dot">'+(pred?"◌":"●")+'</span>'+
+      '<span class="verdict ve-'+b.ve+'">'+VLABEL[b.ve]+'</span>'+
+      '<span class="pl">'+esc(b.payload)+'</span>'+
+      '<span class="mech">'+esc(b.mech)+'</span>'+
+      '<span class="caret">▸</span>';
+    var body = document.createElement("div");
+    body.className="bbody"; body.id=bodyId; body.hidden=true;
+    var tail = b.sig
+      ? '<div class="lbl">Signal</div><div class="sig"><span class="hit">'+esc(b.sig)+'</span></div>'
+      : '<div class="lbl">Prediction</div><div class="pred-note">'+esc(b.rationale)+'</div>'+
+        '<div class="firehint" style="margin-top:6px">'+(b.hint || 'not sent — run <code>recon.py</code> live to collapse this to solid')+'</div>';
+    body.innerHTML = '<div class="lbl">Intent</div><div class="intent">'+esc(b.intent)+'</div>'+tail;
+    btn.addEventListener("click", function(){
+      var open = btn.getAttribute("aria-expanded")==="true";
+      btn.setAttribute("aria-expanded", String(!open));
+      body.hidden = open;
+      wrap.classList.toggle("open", !open);
+    });
+    wrap.appendChild(btn); wrap.appendChild(body);
+    tree.appendChild(wrap);
+    if (b.ve === "WIN"){ btn.click(); }   // open the win by default
+  });
+
+  var btn = document.getElementById("rangeBtn");
+  btn.addEventListener("click", function(){
+    var hidden = tree.classList.toggle("hide-pred");
+    btn.textContent = hidden ? "Show the range" : "Hide predictions";
+  });
+</script>
+</body>
+</html>
